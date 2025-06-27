@@ -1,3 +1,4 @@
+
 import UniversalSDK, { 
   UniversalSDKConfig, 
   User, 
@@ -183,7 +184,7 @@ if (!import.meta.env.VITE_GITHUB_TOKEN || import.meta.env.VITE_GITHUB_TOKEN === 
   const originalDelete = sdk.delete.bind(sdk);
   const originalSave = (sdk as any).save.bind(sdk);
 
-  sdk.get = async function<T = any>(collection: string): Promise<T[]> {
+  sdk.get = async function(collection: string): Promise<any[]> {
     try {
       const data = localStorage.getItem(`demo_${collection}`);
       return data ? JSON.parse(data) : [];
@@ -192,17 +193,17 @@ if (!import.meta.env.VITE_GITHUB_TOKEN || import.meta.env.VITE_GITHUB_TOKEN === 
     }
   };
 
-  sdk.insert = async function<T = any>(collection: string, item: Partial<T>): Promise<T & { id: string; uid: string }> {
-    const arr = await this.get<T>(collection);
+  sdk.insert = async function(collection: string, item: any): Promise<any> {
+    const arr = await this.get(collection);
     const id = (Math.max(0, ...arr.map((x: any) => +x.id || 0)) + 1).toString();
-    const newItem = { uid: crypto.randomUUID(), id, ...item } as T & { id: string; uid: string };
+    const newItem = { uid: crypto.randomUUID(), id, ...item };
     arr.push(newItem);
     localStorage.setItem(`demo_${collection}`, JSON.stringify(arr));
     return newItem;
   };
 
-  sdk.update = async function<T = any>(collection: string, key: string, updates: Partial<T>): Promise<T> {
-    const arr = await this.get<T>(collection);
+  sdk.update = async function(collection: string, key: string, updates: any): Promise<any> {
+    const arr = await this.get(collection);
     const i = arr.findIndex((x: any) => x.id === key || x.uid === key);
     if (i < 0) throw new Error("Not found");
     const upd = { ...arr[i], ...updates };
@@ -211,8 +212,8 @@ if (!import.meta.env.VITE_GITHUB_TOKEN || import.meta.env.VITE_GITHUB_TOKEN === 
     return upd;
   };
 
-  sdk.delete = async function<T = any>(collection: string, key: string): Promise<void> {
-    const arr = await this.get<T>(collection);
+  sdk.delete = async function(collection: string, key: string): Promise<void> {
+    const arr = await this.get(collection);
     const filtered = arr.filter((x: any) => x.id !== key && x.uid !== key);
     localStorage.setItem(`demo_${collection}`, JSON.stringify(filtered));
   };

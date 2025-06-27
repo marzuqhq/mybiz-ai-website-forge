@@ -208,6 +208,10 @@ const WebsiteEditor: React.FC = () => {
     setSelectedBlock(null);
   };
 
+  const handleBlockSelect = (block: Block) => {
+    setSelectedBlock(block);
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -321,7 +325,7 @@ const WebsiteEditor: React.FC = () => {
               {blocks.map((block, index) => (
                 <div
                   key={block.id}
-                  onClick={() => setSelectedBlock(block)}
+                  onClick={() => handleBlockSelect(block)}
                   className={`p-3 rounded-lg border cursor-pointer transition-all ${
                     selectedBlock?.id === block.id
                       ? 'border-blue-300 bg-blue-50'
@@ -358,7 +362,7 @@ const WebsiteEditor: React.FC = () => {
               <BlockEditor
                 blocks={blocks}
                 selectedBlock={selectedBlock}
-                onBlockSelect={setSelectedBlock}
+                onBlockSelect={handleBlockSelect}
                 onBlockEdit={handleBlockEdit}
                 isSaving={isSaving}
               />
