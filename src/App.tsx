@@ -12,6 +12,7 @@ import RegisterForm from "./components/auth/RegisterForm";
 import CreateWebsiteForm from "./components/website/CreateWebsiteForm";
 import WebsiteEditor from "./pages/WebsiteEditor";
 import CMSManager from "./pages/CMSManager";
+import AdminDashboard from "./pages/AdminDashboard";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -32,6 +33,7 @@ const App = () => (
               <Route path="/create" element={<CreateWebsiteForm />} />
               <Route path="/website/:websiteId" element={<WebsiteEditor />} />
               <Route path="/website/:websiteId/cms" element={<CMSManager />} />
+              <Route path="/admin" element={<AdminDashboard />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
