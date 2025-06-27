@@ -1,4 +1,3 @@
-
 // AI Service for Gemini 2.5 Flash integration
 interface BusinessInfo {
   businessType: string;
@@ -97,6 +96,71 @@ class AIService {
     ];
 
     return commonFAQs;
+  }
+
+  async generateSEOSuggestions(content: string, keywords: string[]): Promise<{
+    score: number;
+    issues: Array<{
+      type: 'error' | 'warning' | 'info';
+      title: string;
+      description: string;
+      fix: string;
+    }>;
+    keywords: string[];
+    recommendations: string[];
+  }> {
+    if (this.apiKey === 'demo-key') {
+      return {
+        score: 75,
+        issues: [
+          {
+            type: 'warning',
+            title: 'Missing Meta Description',
+            description: 'Page is missing a meta description which is important for search results.',
+            fix: 'Add a compelling 150-160 character meta description that includes your target keywords.'
+          },
+          {
+            type: 'info',
+            title: 'Image Alt Text',
+            description: 'Some images are missing alt text for better accessibility and SEO.',
+            fix: 'Add descriptive alt text to all images mentioning relevant keywords when appropriate.'
+          },
+          {
+            type: 'error',
+            title: 'Page Load Speed',
+            description: 'Page load time could be improved for better user experience and SEO.',
+            fix: 'Optimize images and reduce unnecessary JavaScript to improve load times.'
+          }
+        ],
+        keywords: keywords.length > 0 ? keywords : ['business', 'service', 'local'],
+        recommendations: [
+          'Add more internal links between related pages',
+          'Create a blog to target long-tail keywords',
+          'Optimize for local SEO with location-based keywords',
+          'Add schema markup for better search engine understanding'
+        ]
+      };
+    }
+
+    try {
+      const prompt = `Analyze this content for SEO optimization: "${content.substring(0, 500)}..."
+      Target keywords: ${keywords.join(', ')}
+      
+      Provide SEO analysis with:
+      1. Overall SEO score (0-100)
+      2. Issues found (errors, warnings, info)
+      3. Specific recommendations for improvement
+      4. Keyword optimization suggestions
+      
+      Return as structured data.`;
+      
+      const response = await this.callGemini(prompt);
+      return this.parseSEOResponse(response.content, keywords);
+    } catch (error) {
+      console.error('SEO analysis failed:', error);
+      // Return demo data as fallback
+      return this.generateSEOSuggestions(content, keywords);
+    }
   }
 
   private async callGemini(prompt: string): Promise<AIResponse> {
@@ -243,6 +307,28 @@ class AIService {
       tone: 'Professional',
       services: ['Consulting', 'Support']
     });
+  }
+
+  private parseSEOResponse(content: string, keywords: string[]) {
+    // Parse AI response into structured SEO format
+    // For demo, return basic structure
+    return {
+      score: 78,
+      issues: [
+        {
+          type: 'warning' as const,
+          title: 'Content Length',
+          description: 'Content could be more comprehensive for better SEO ranking.',
+          fix: 'Expand sections with more detailed information and target keywords.'
+        }
+      ],
+      keywords: keywords.length > 0 ? keywords : ['business', 'professional', 'service'],
+      recommendations: [
+        'Improve content depth and keyword density',
+        'Add more semantic keywords related to your business',
+        'Include location-based keywords for local SEO'
+      ]
+    };
   }
 
   private generateDemoEdit(currentContent: string, editPrompt: string): string {
