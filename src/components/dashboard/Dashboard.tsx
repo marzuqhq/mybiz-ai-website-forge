@@ -141,17 +141,26 @@ const Dashboard: React.FC = () => {
                       <p><strong>Created:</strong> {new Date(website.createdAt).toLocaleDateString()}</p>
                     </div>
                     
-                    <div className="flex items-center space-x-2">
+                    <div className="grid grid-cols-2 gap-2">
                       <Link to={`/website/${website.id}`} className="flex-1">
                         <Button variant="outline" size="sm" className="w-full">
                           <Edit className="w-4 h-4 mr-2" />
                           Edit
                         </Button>
                       </Link>
+                      <Link to={`/website/${website.id}/cms`} className="flex-1">
+                        <Button variant="outline" size="sm" className="w-full">
+                          <BarChart3 className="w-4 h-4 mr-2" />
+                          CMS
+                        </Button>
+                      </Link>
+                    </div>
+                    
+                    <div className="flex items-center space-x-2">
                       {website.status === 'published' && (
-                        <Button variant="outline" size="sm">
+                        <Button variant="outline" size="sm" className="flex-1">
                           <Eye className="w-4 h-4 mr-2" />
-                          View
+                          View Live
                         </Button>
                       )}
                       <Button 

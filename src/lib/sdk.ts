@@ -1,4 +1,3 @@
-
 import UniversalSDK, { 
   UniversalSDKConfig, 
   User, 
@@ -8,9 +7,9 @@ import UniversalSDK, {
 
 // SDK Configuration
 const sdkConfig: UniversalSDKConfig = {
-  owner: import.meta.env.VITE_GITHUB_OWNER || '',
-  repo: import.meta.env.VITE_GITHUB_REPO || '',
-  token: import.meta.env.VITE_GITHUB_TOKEN || '',
+  owner: import.meta.env.VITE_GITHUB_OWNER || 'demo-user',
+  repo: import.meta.env.VITE_GITHUB_REPO || 'website-data',
+  token: import.meta.env.VITE_GITHUB_TOKEN || 'demo-token',
   branch: import.meta.env.VITE_GITHUB_BRANCH || 'main',
   basePath: 'db',
   mediaPath: 'media',
@@ -23,8 +22,8 @@ const sdkConfig: UniversalSDKConfig = {
     from: import.meta.env.VITE_SMTP_FROM,
   },
   auth: {
-    requireEmailVerification: true,
-    otpTriggers: ['register', 'login'],
+    requireEmailVerification: false, // Simplified for demo
+    otpTriggers: [],
   },
   schemas: {
     users: {
@@ -174,8 +173,55 @@ const sdkConfig: UniversalSDKConfig = {
 // Initialize SDK
 export const sdk = new UniversalSDK(sdkConfig);
 
-// Initialize SDK on import
-sdk.init().catch(console.error);
+// For demo purposes, we'll use localStorage as fallback when GitHub is not configured
+if (!import.meta.env.VITE_GITHUB_TOKEN || import.meta.env.VITE_GITHUB_TOKEN === 'demo-token') {
+  console.warn('GitHub not configured, using localStorage for demo');
+  // Override SDK methods to use localStorage for demo
+  const originalGet = sdk.get.bind(sdk);
+  const originalInsert = sdk.insert.bind(sdk);
+  const originalUpdate = sdk.update.bind(sdk);
+  const originalDelete = sdk.delete.bind(sdk);
+  const originalSave = (sdk as any).save.bind(sdk);
+
+  sdk.get = async function<T = any>(collection: string): Promise<T[]> {
+    try {
+      const data = localStorage.getItem(`demo_${collection}`);
+      return data ? JSON.parse(data) : [];
+    } catch {
+      return [];
+    }
+  };
+
+  sdk.insert = async function<T = any>(collection: string, item: Partial<T>): Promise<T & { id: string; uid: string }> {
+    const arr = await this.get<T>(collection);
+    const id = (Math.max(0, ...arr.map((x: any) => +x.id || 0)) + 1).toString();
+    const newItem = { uid: crypto.randomUUID(), id, ...item } as T & { id: string; uid: string };
+    arr.push(newItem);
+    localStorage.setItem(`demo_${collection}`, JSON.stringify(arr));
+    return newItem;
+  };
+
+  sdk.update = async function<T = any>(collection: string, key: string, updates: Partial<T>): Promise<T> {
+    const arr = await this.get<T>(collection);
+    const i = arr.findIndex((x: any) => x.id === key || x.uid === key);
+    if (i < 0) throw new Error("Not found");
+    const upd = { ...arr[i], ...updates };
+    arr[i] = upd;
+    localStorage.setItem(`demo_${collection}`, JSON.stringify(arr));
+    return upd;
+  };
+
+  sdk.delete = async function<T = any>(collection: string, key: string): Promise<void> {
+    const arr = await this.get<T>(collection);
+    const filtered = arr.filter((x: any) => x.id !== key && x.uid !== key);
+    localStorage.setItem(`demo_${collection}`, JSON.stringify(filtered));
+  };
+}
+
+// Initialize SDK on import (with error handling)
+sdk.init().catch(error => {
+  console.warn('SDK initialization failed, running in demo mode:', error);
+});
 
 export default sdk;
 export type { User, Session, CloudinaryUploadResult };
