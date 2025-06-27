@@ -66,7 +66,7 @@ const CTASection: React.FC = () => {
           </div>
 
           <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 border border-white/20">
-            <div className="text-3xl font-bold text-white mb-2">< 60s</div>
+            <div className="text-3xl font-bold text-white mb-2">&lt; 60s</div>
             <div className="text-blue-100">Average Build Time</div>
           </div>
 
