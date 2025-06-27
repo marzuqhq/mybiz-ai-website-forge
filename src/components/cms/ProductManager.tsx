@@ -1,22 +1,14 @@
 
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
+import { Plus, Edit, Trash2, Package, ExternalLink, DollarSign, Save } from 'lucide-react';
 import sdk from '@/lib/sdk';
-import { 
-  Plus, 
-  Edit, 
-  Trash2, 
-  Package,
-  Save,
-  ExternalLink,
-  DollarSign
-} from 'lucide-react';
 
 interface Product {
   id: string;
@@ -25,8 +17,11 @@ interface Product {
   slug: string;
   imageUrl: string;
   description: string;
+  shortDescription: string;
   price: number;
+  currency: string;
   externalUrl: string;
+  status: string;
 }
 
 interface ProductManagerProps {
@@ -35,18 +30,18 @@ interface ProductManagerProps {
 
 const ProductManager: React.FC<ProductManagerProps> = ({ websiteId }) => {
   const { toast } = useToast();
-
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isEditing, setIsEditing] = useState(false);
-  const [isCreating, setIsCreating] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [editForm, setEditForm] = useState({
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [formData, setFormData] = useState({
     title: '',
     description: '',
+    shortDescription: '',
     price: '',
-    imageUrl: '',
+    currency: 'USD',
     externalUrl: '',
+    imageUrl: ''
   });
 
   useEffect(() => {
@@ -57,132 +52,122 @@ const ProductManager: React.FC<ProductManagerProps> = ({ websiteId }) => {
     try {
       setIsLoading(true);
       const allProducts = await sdk.get<Product>('products');
-      const websiteProducts = allProducts.filter(p => p.websiteId === websiteId);
+      const websiteProducts = allProducts.filter(product => product.websiteId === websiteId);
       setProducts(websiteProducts);
-    } catch (error) {
-      console.error('Failed to load products:', error);
+    } catch (error: any) {
+      toast({
+        title: "Error loading products",
+        description: error.message,
+        variant: "destructive",
+      });
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleCreateProduct = async () => {
-    if (!editForm.title.trim() || !editForm.description.trim()) {
+  const handleSubmit = async () => {
+    if (!formData.title.trim()) {
       toast({
-        title: "Validation error",
-        description: "Title and description are required.",
+        title: "Title required",
+        description: "Please enter a product title.",
         variant: "destructive",
       });
       return;
     }
 
     try {
-      const newProduct = await sdk.insert<Product>('products', {
+      const productData = {
         websiteId,
-        title: editForm.title,
-        slug: editForm.title.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''),
-        description: editForm.description,
-        price: parseFloat(editForm.price) || 0,
-        imageUrl: editForm.imageUrl,
-        externalUrl: editForm.externalUrl
-      });
+        title: formData.title,
+        slug: formData.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''),
+        description: formData.description,
+        shortDescription: formData.shortDescription || formData.description.substring(0, 100) + '...',
+        price: parseFloat(formData.price) || 0,
+        currency: formData.currency,
+        externalUrl: formData.externalUrl,
+        imageUrl: formData.imageUrl,
+        status: 'active'
+      };
 
-      setProducts([...products, newProduct]);
-      setIsCreating(false);
-      resetForm();
-      
-      toast({
-        title: "Product created",
-        description: "Your product has been created successfully.",
+      if (editingProduct) {
+        await sdk.update('products', editingProduct.id, productData);
+        toast({
+          title: "Product updated",
+          description: "Product has been updated successfully.",
+        });
+      } else {
+        await sdk.insert('products', productData);
+        toast({
+          title: "Product created",
+          description: "Product has been created successfully.",
+        });
+      }
+
+      setIsDialogOpen(false);
+      setEditingProduct(null);
+      setFormData({
+        title: '',
+        description: '',
+        shortDescription: '',
+        price: '',
+        currency: 'USD',
+        externalUrl: '',
+        imageUrl: ''
       });
+      loadProducts();
     } catch (error: any) {
-      console.error('Create product error:', error);
       toast({
-        title: "Creation failed",
-        description: error.message || "Failed to create product.",
+        title: "Error saving product",
+        description: error.message,
         variant: "destructive",
       });
     }
   };
 
-  const handleUpdateProduct = async () => {
-    if (!selectedProduct || !editForm.title.trim() || !editForm.description.trim()) return;
-
-    try {
-      const updatedProduct = await sdk.update<Product>('products', selectedProduct.id, {
-        title: editForm.title,
-        description: editForm.description,
-        price: parseFloat(editForm.price) || 0,
-        imageUrl: editForm.imageUrl,
-        externalUrl: editForm.externalUrl,
-        slug: editForm.title.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
-      });
-
-      setProducts(products.map(p => p.id === selectedProduct.id ? updatedProduct : p));
-      setIsEditing(false);
-      setSelectedProduct(null);
-      resetForm();
-      
-      toast({
-        title: "Product updated",
-        description: "Your product has been updated successfully.",
-      });
-    } catch (error: any) {
-      console.error('Update product error:', error);
-      toast({
-        title: "Update failed",
-        description: error.message || "Failed to update product.",
-        variant: "destructive",
-      });
-    }
+  const handleEdit = (product: Product) => {
+    setEditingProduct(product);
+    setFormData({
+      title: product.title,
+      description: product.description,
+      shortDescription: product.shortDescription,
+      price: product.price.toString(),
+      currency: product.currency,
+      externalUrl: product.externalUrl,
+      imageUrl: product.imageUrl
+    });
+    setIsDialogOpen(true);
   };
 
-  const handleDeleteProduct = async (productId: string) => {
+  const handleDelete = async (productId: string) => {
     if (!confirm('Are you sure you want to delete this product?')) return;
 
     try {
       await sdk.delete('products', productId);
-      setProducts(products.filter(p => p.id !== productId));
-      
       toast({
         title: "Product deleted",
-        description: "The product has been deleted.",
+        description: "Product has been deleted successfully.",
       });
+      loadProducts();
     } catch (error: any) {
-      console.error('Delete product error:', error);
       toast({
-        title: "Delete failed",
-        description: error.message || "Failed to delete product.",
+        title: "Error deleting product",
+        description: error.message,
         variant: "destructive",
       });
     }
   };
 
   const resetForm = () => {
-    setEditForm({
+    setFormData({
       title: '',
       description: '',
+      shortDescription: '',
       price: '',
-      imageUrl: '',
+      currency: 'USD',
       externalUrl: '',
+      imageUrl: ''
     });
-  };
-
-  const startEdit = (product: Product) => {
-    setSelectedProduct(product);
-    setEditForm({
-      title: product.title,
-      description: product.description,
-      price: product.price.toString(),
-      imageUrl: product.imageUrl,
-      externalUrl: product.externalUrl
-    });
-    setIsEditing(true);
-  };
-
-  const startCreate = () => {
-    resetForm();
-    setIsCreating(true);
+    setEditingProduct(null);
   };
 
   if (isLoading) {
@@ -195,197 +180,215 @@ const ProductManager: React.FC<ProductManagerProps> = ({ websiteId }) => {
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Products & Services</h2>
-          <p className="text-gray-600">Showcase what you offer to your customers</p>
+          <h2 className="text-2xl font-bold text-gray-900">Products</h2>
+          <p className="text-gray-600">Showcase your products or services</p>
         </div>
-        <Button onClick={startCreate} className="bg-gradient-to-r from-blue-500 to-purple-600">
-          <Plus className="w-4 h-4 mr-2" />
-          Add Product
-        </Button>
+        <Dialog open={isDialogOpen} onOpenChange={(open) => {
+          setIsDialogOpen(open);
+          if (!open) resetForm();
+        }}>
+          <DialogTrigger asChild>
+            <Button className="bg-gradient-to-r from-blue-500 to-purple-600">
+              <Plus className="w-4 h-4 mr-2" />
+              New Product
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>
+                {editingProduct ? 'Edit Product' : 'Create New Product'}
+              </DialogTitle>
+              <DialogDescription>
+                {editingProduct ? 'Update your product information' : 'Add a new product to showcase'}
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="space-y-6 mt-6">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Product Title</label>
+                <Input
+                  value={formData.title}
+                  onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
+                  placeholder="Enter product name..."
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Short Description</label>
+                <Input
+                  value={formData.shortDescription}
+                  onChange={(e) => setFormData(prev => ({ ...prev, shortDescription: e.target.value }))}
+                  placeholder="Brief product description..."
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Full Description</label>
+                <Textarea
+                  value={formData.description}
+                  onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                  placeholder="Detailed product description..."
+                  rows={4}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Price</label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={formData.price}
+                    onChange={(e) => setFormData(prev => ({ ...prev, price: e.target.value }))}
+                    placeholder="0.00"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Currency</label>
+                  <select
+                    value={formData.currency}
+                    onChange={(e) => setFormData(prev => ({ ...prev, currency: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="USD">USD ($)</option>
+                    <option value="EUR">EUR (€)</option>
+                    <option value="GBP">GBP (£)</option>
+                    <option value="CAD">CAD (C$)</option>
+                    <option value="AUD">AUD (A$)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Image URL</label>
+                <Input
+                  value={formData.imageUrl}
+                  onChange={(e) => setFormData(prev => ({ ...prev, imageUrl: e.target.value }))}
+                  placeholder="https://example.com/product-image.jpg"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">External Link (optional)</label>
+                <Input
+                  value={formData.externalUrl}
+                  onChange={(e) => setFormData(prev => ({ ...prev, externalUrl: e.target.value }))}
+                  placeholder="https://example.com/buy-now"
+                />
+                <p className="text-xs text-gray-500">
+                  Link to external store or more details
+                </p>
+              </div>
+
+              <div className="flex justify-end space-x-2">
+                <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleSubmit}>
+                  <Save className="w-4 h-4 mr-2" />
+                  {editingProduct ? 'Update Product' : 'Create Product'}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
 
       {/* Products Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {products.map((product) => (
-          <Card key={product.id} className="hover:shadow-lg transition-shadow">
-            <CardHeader className="p-0">
-              {product.imageUrl ? (
-                <img
-                  src={product.imageUrl}
-                  alt={product.title}
-                  className="w-full h-48 object-cover rounded-t-lg"
-                />
-              ) : (
-                <div className="w-full h-48 bg-gray-200 rounded-t-lg flex items-center justify-center">
-                  <Package className="w-12 h-12 text-gray-400" />
-                </div>
-              )}
-            </CardHeader>
-            <CardContent className="p-4">
-              <div className="space-y-3">
-                <div>
-                  <h3 className="text-lg font-semibold line-clamp-2">{product.title}</h3>
-                  <p className="text-gray-600 text-sm line-clamp-3 mt-1">{product.description}</p>
-                </div>
-                
-                {product.price > 0 && (
-                  <div className="flex items-center text-lg font-bold text-green-600">
-                    <DollarSign className="w-4 h-4 mr-1" />
-                    {product.price.toFixed(2)}
+      {products.length === 0 ? (
+        <Card>
+          <CardContent className="text-center py-12">
+            <Package className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">No products yet</h3>
+            <p className="text-gray-600 mb-6">
+              Add products to showcase what you offer to your customers.
+            </p>
+            <Button onClick={() => setIsDialogOpen(true)} className="bg-gradient-to-r from-blue-500 to-purple-600">
+              <Plus className="w-4 h-4 mr-2" />
+              Add First Product
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {products.map((product) => (
+            <Card key={product.id} className="hover:shadow-lg transition-shadow">
+              <CardHeader>
+                {product.imageUrl && (
+                  <div className="w-full h-48 bg-gray-100 rounded-lg mb-4 overflow-hidden">
+                    <img 
+                      src={product.imageUrl} 
+                      alt={product.title}
+                      className="w-full h-full object-cover"
+                    />
                   </div>
                 )}
-
-                {product.externalUrl && (
-                  <a
-                    href={product.externalUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-600 hover:text-blue-700 text-sm flex items-center"
-                  >
-                    <ExternalLink className="w-3 h-3 mr-1" />
-                    View Details
-                  </a>
-                )}
-
-                <div className="flex items-center space-x-2 pt-2">
-                  <Button size="sm" variant="outline" onClick={() => startEdit(product)}>
-                    <Edit className="w-3 h-3 mr-1" />
-                    Edit
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleDeleteProduct(product.id)}
-                    className="text-red-600 hover:text-red-700"
-                  >
-                    <Trash2 className="w-3 h-3" />
-                  </Button>
+                <div className="flex items-start justify-between">
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg line-clamp-2">{product.title}</CardTitle>
+                    <CardDescription className="mt-1">
+                      {product.shortDescription}
+                    </CardDescription>
+                  </div>
+                  <Badge variant="outline">
+                    {product.status}
+                  </Badge>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-1">
+                      <DollarSign className="w-4 h-4 text-green-600" />
+                      <span className="text-lg font-semibold text-green-600">
+                        {product.price > 0 ? `${product.currency} ${product.price}` : 'Free'}
+                      </span>
+                    </div>
+                    {product.externalUrl && (
+                      <a 
+                        href={product.externalUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:text-blue-700"
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                      </a>
+                    )}
+                  </div>
 
-      {products.length === 0 && (
-        <div className="text-center py-12">
-          <div className="w-16 h-16 bg-gray-200 rounded-lg flex items-center justify-center mx-auto mb-4">
-            <Package className="w-8 h-8 text-gray-400" />
-          </div>
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">No products yet</h3>
-          <p className="text-gray-600 mb-4">
-            Add products or services to showcase what you offer.
-          </p>
-          <Button onClick={startCreate} className="bg-gradient-to-r from-blue-500 to-purple-600">
-            <Plus className="w-4 h-4 mr-2" />
-            Add Your First Product
-          </Button>
+                  <p className="text-gray-600 text-sm line-clamp-3">
+                    {product.description}
+                  </p>
+
+                  <div className="flex items-center space-x-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleEdit(product)}
+                      className="flex-1"
+                    >
+                      <Edit className="w-3 h-3 mr-1" />
+                      Edit
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleDelete(product.id)}
+                      className="hover:bg-red-50 hover:border-red-200 hover:text-red-600"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
         </div>
       )}
-
-      {/* Create/Edit Dialog */}
-      <Dialog open={isCreating || isEditing} onOpenChange={(open) => {
-        if (!open) {
-          setIsCreating(false);
-          setIsEditing(false);
-          setSelectedProduct(null);
-          resetForm();
-        }
-      }}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>
-              {isCreating ? 'Add New Product' : 'Edit Product'}
-            </DialogTitle>
-            <DialogDescription>
-              {isCreating ? 'Add a product or service to your website' : 'Update your product information'}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="title">Title *</Label>
-                <Input
-                  id="title"
-                  value={editForm.title}
-                  onChange={(e) => setEditForm({...editForm, title: e.target.value})}
-                  placeholder="Product or service name"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="price">Price ($)</Label>
-                <Input
-                  id="price"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={editForm.price}
-                  onChange={(e) => setEditForm({...editForm, price: e.target.value})}
-                  placeholder="0.00"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="description">Description *</Label>
-              <Textarea
-                id="description"
-                value={editForm.description}
-                onChange={(e) => setEditForm({...editForm, description: e.target.value})}
-                placeholder="Describe your product or service..."
-                rows={3}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="imageUrl">Image URL</Label>
-              <Input
-                id="imageUrl"
-                value={editForm.imageUrl}
-                onChange={(e) => setEditForm({...editForm, imageUrl: e.target.value})}
-                placeholder="https://example.com/image.jpg"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="externalUrl">External Link</Label>
-              <Input
-                id="externalUrl"
-                value={editForm.externalUrl}
-                onChange={(e) => setEditForm({...editForm, externalUrl: e.target.value})}
-                placeholder="https://example.com/product"
-              />
-              <p className="text-xs text-gray-500">
-                Link to external product page, booking system, or more information
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-end space-x-3 pt-4">
-            <Button
-              variant="outline"
-              onClick={() => {
-                setIsCreating(false);
-                setIsEditing(false);
-                setSelectedProduct(null);
-                resetForm();
-              }}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={isCreating ? handleCreateProduct : handleUpdateProduct}
-              className="bg-gradient-to-r from-blue-500 to-purple-600"
-            >
-              <Save className="w-4 h-4 mr-2" />
-              {isCreating ? 'Add Product' : 'Update Product'}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };

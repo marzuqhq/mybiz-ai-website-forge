@@ -1,64 +1,69 @@
 
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
-import { Wand2, ArrowRight, Building2, Users, Palette, Target } from 'lucide-react';
-import { aiService } from '@/lib/ai';
-import sdk from '@/lib/sdk';
 import { useToast } from '@/hooks/use-toast';
+import { Brain, Sparkles, Wand2, ArrowRight, Plus, X } from 'lucide-react';
+import sdk from '@/lib/sdk';
+import { aiService } from '@/lib/ai';
 
 const CreateWebsiteForm: React.FC = () => {
-  const [step, setStep] = useState(1);
-  const [isGenerating, setIsGenerating] = useState(false);
   const { user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  // Form data
+  const [step, setStep] = useState(1);
+  const [isGenerating, setIsGenerating] = useState(false);
   const [formData, setFormData] = useState({
     businessName: '',
     businessType: '',
-    businessDescription: '',
     targetAudience: '',
     location: '',
-    tone: 'professional',
-    services: '',
-    goals: '',
+    tone: '',
+    services: [] as string[],
+    description: ''
   });
+  const [newService, setNewService] = useState('');
 
   const businessTypes = [
-    'Restaurant & Food Service',
-    'Retail Store',
-    'Professional Services',
-    'Healthcare & Medical',
-    'Beauty & Wellness',
-    'Fitness & Sports',
-    'Real Estate',
-    'Education & Training',
-    'Technology & Software',
-    'Consulting',
-    'E-commerce',
-    'Non-profit',
-    'Other'
+    'Restaurant', 'Retail Store', 'Professional Services', 'Healthcare', 'Beauty & Wellness',
+    'Real Estate', 'Consulting', 'Technology', 'Education', 'Non-Profit', 'E-commerce', 'Other'
   ];
 
-  const tones = [
-    { value: 'professional', label: 'Professional & Formal' },
+  const toneOptions = [
+    { value: 'professional', label: 'Professional & Trustworthy' },
     { value: 'friendly', label: 'Friendly & Approachable' },
-    { value: 'modern', label: 'Modern & Trendy' },
+    { value: 'modern', label: 'Modern & Innovative' },
     { value: 'elegant', label: 'Elegant & Sophisticated' },
-    { value: 'playful', label: 'Playful & Fun' },
-    { value: 'authoritative', label: 'Authoritative & Expert' },
+    { value: 'playful', label: 'Playful & Creative' }
   ];
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const addService = () => {
+    if (newService.trim() && !formData.services.includes(newService.trim())) {
+      setFormData(prev => ({
+        ...prev,
+        services: [...prev.services, newService.trim()]
+      }));
+      setNewService('');
+    }
+  };
+
+  const removeService = (service: string) => {
+    setFormData(prev => ({
+      ...prev,
+      services: prev.services.filter(s => s !== service)
+    }));
   };
 
   const handleNext = () => {
@@ -83,68 +88,72 @@ const CreateWebsiteForm: React.FC = () => {
       return;
     }
 
-    setIsGenerating(true);
-    
+    if (!formData.businessName || !formData.businessType || formData.services.length === 0) {
+      toast({
+        title: "Missing information",
+        description: "Please fill in all required fields.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
-      // Generate website content using AI
-      const websiteContent = await aiService.generateWebsiteContent(
-        formData.businessDescription,
-        formData.businessType,
-        formData.targetAudience,
-        formData.tone
-      );
+      setIsGenerating(true);
+
+      // Generate website using AI
+      const aiResult = await aiService.generateWebsite(formData);
 
       // Create website record
       const website = await sdk.insert('websites', {
         userId: user.id,
         name: formData.businessName,
-        status: 'draft',
-        theme: websiteContent.theme,
-        businessInfo: {
-          name: formData.businessName,
-          type: formData.businessType,
-          description: formData.businessDescription,
-          targetAudience: formData.targetAudience,
-          location: formData.location,
-          tone: formData.tone,
-          services: formData.services,
-          goals: formData.goals,
-        },
-        seoConfig: {
-          siteName: websiteContent.siteName,
-          tagline: websiteContent.tagline,
-        },
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        businessInfo: formData,
+        theme: aiResult.theme,
+        seoConfig: aiResult.seoConfig,
+        status: 'draft'
       });
 
       // Create pages and blocks
-      for (const pageData of websiteContent.pages) {
+      for (const pageData of aiResult.pages) {
         const page = await sdk.insert('pages', {
           websiteId: website.id,
           title: pageData.title,
           slug: pageData.slug,
           type: pageData.type,
-          seoMeta: pageData.seoMeta,
+          seoMeta: {
+            title: pageData.title,
+            description: aiResult.seoConfig.metaDescription,
+            keywords: aiResult.seoConfig.keywords
+          }
         });
 
-        // Create blocks for this page
+        // Create blocks for each page
         for (let i = 0; i < pageData.blocks.length; i++) {
-          const blockData = pageData.blocks[i];
           await sdk.insert('blocks', {
             pageId: page.id,
-            type: blockData.type,
-            content: blockData.content,
+            type: pageData.blocks[i].type,
+            content: pageData.blocks[i].content,
             order: i,
             aiGenerated: true,
-            editable: true,
+            editable: true
           });
         }
       }
 
+      // Generate FAQs
+      const faqs = await aiService.generateFAQs(formData);
+      for (const faq of faqs) {
+        await sdk.insert('faqs', {
+          websiteId: website.id,
+          question: faq.question,
+          answer: faq.answer,
+          aiGenerated: true
+        });
+      }
+
       toast({
-        title: "Website generated successfully!",
-        description: "Your AI-powered website is ready for customization.",
+        title: "Website generated!",
+        description: "Your AI-powered website has been created successfully.",
       });
 
       navigate(`/website/${website.id}`);
@@ -163,73 +172,110 @@ const CreateWebsiteForm: React.FC = () => {
   const isStepValid = () => {
     switch (step) {
       case 1:
-        return formData.businessName && formData.businessType && formData.businessDescription;
+        return formData.businessName && formData.businessType;
       case 2:
-        return formData.targetAudience;
+        return formData.targetAudience && formData.location && formData.tone;
       case 3:
-        return true;
+        return formData.services.length > 0;
       default:
         return false;
     }
   };
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 p-6">
-      <div className="max-w-2xl mx-auto">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center mx-auto mb-4">
-            <Wand2 className="w-8 h-8 text-white" />
+  if (isGenerating) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
+        <div className="text-center max-w-md mx-auto p-8">
+          <div className="w-20 h-20 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center mb-6 mx-auto animate-pulse">
+            <Brain className="w-10 h-10 text-white" />
           </div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Create Your Website</h1>
-          <p className="text-gray-600">Tell us about your business and we'll create your perfect website with AI</p>
+          <h2 className="text-2xl font-bold text-slate-900 mb-4">Creating Your Website</h2>
+          <p className="text-slate-600 mb-6">Our AI is analyzing your business and generating a custom website...</p>
+          <div className="space-y-3">
+            <div className="flex items-center justify-center space-x-2">
+              <div className="w-2 h-2 bg-indigo-500 rounded-full animate-pulse"></div>
+              <span className="text-sm text-slate-600">Analyzing business information</span>
+            </div>
+            <div className="flex items-center justify-center space-x-2">
+              <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse delay-100"></div>
+              <span className="text-sm text-slate-600">Generating pages and content</span>
+            </div>
+            <div className="flex items-center justify-center space-x-2">
+              <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse delay-200"></div>
+              <span className="text-sm text-slate-600">Creating SEO optimization</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 py-12">
+      <div className="max-w-4xl mx-auto px-6">
+        {/* Header */}
+        <div className="text-center mb-12">
+          <div className="inline-flex items-center space-x-2 bg-white/80 backdrop-blur-sm border border-indigo-200/50 rounded-full px-4 py-2 mb-6 shadow-sm">
+            <Brain className="w-4 h-4 text-indigo-600" />
+            <span className="text-sm font-medium text-indigo-900">AI Website Generator</span>
+          </div>
+          <h1 className="text-4xl md:text-5xl font-bold text-slate-900 mb-4">
+            Describe Your Business,
+            <span className="bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent"> Get Your Website</span>
+          </h1>
+          <p className="text-xl text-slate-600 max-w-2xl mx-auto">
+            Our AI will create a complete, professional website tailored to your business in under 60 seconds.
+          </p>
         </div>
 
-        {/* Progress Indicator */}
-        <div className="flex items-center justify-center mb-8">
-          {[1, 2, 3].map((number) => (
-            <React.Fragment key={number}>
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                step >= number 
-                  ? 'bg-blue-600 text-white' 
-                  : 'bg-gray-200 text-gray-500'
+        {/* Progress */}
+        <div className="flex items-center justify-center mb-12">
+          {[1, 2, 3].map((stepNum) => (
+            <div key={stepNum} className="flex items-center">
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold ${
+                stepNum === step
+                  ? 'bg-indigo-600 text-white'
+                  : stepNum < step
+                  ? 'bg-green-500 text-white'
+                  : 'bg-slate-200 text-slate-600'
               }`}>
-                {number}
+                {stepNum < step ? '✓' : stepNum}
               </div>
-              {number < 3 && (
-                <div className={`w-12 h-1 ${
-                  step > number ? 'bg-blue-600' : 'bg-gray-200'
+              {stepNum < 3 && (
+                <div className={`w-20 h-1 mx-2 ${
+                  stepNum < step ? 'bg-green-500' : 'bg-slate-200'
                 }`} />
               )}
-            </React.Fragment>
+            </div>
           ))}
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              {step === 1 && <><Building2 className="w-5 h-5 mr-2" /> Business Information</>}
-              {step === 2 && <><Users className="w-5 h-5 mr-2" /> Target Audience</>}
-              {step === 3 && <><Palette className="w-5 h-5 mr-2" /> Style & Preferences</>}
+        {/* Step Content */}
+        <Card className="max-w-2xl mx-auto shadow-xl border-0 bg-white/80 backdrop-blur-sm">
+          <CardHeader className="text-center">
+            <CardTitle className="text-2xl">
+              {step === 1 && 'Tell us about your business'}
+              {step === 2 && 'Who do you serve?'}
+              {step === 3 && 'What services do you offer?'}
             </CardTitle>
             <CardDescription>
-              {step === 1 && "Tell us about your business"}
-              {step === 2 && "Who are your ideal customers?"}
-              {step === 3 && "Choose your website's tone and style"}
+              {step === 1 && 'Basic information about your business'}
+              {step === 2 && 'Help us understand your target market'}
+              {step === 3 && 'List your key services or products'}
             </CardDescription>
           </CardHeader>
 
           <CardContent className="space-y-6">
-            {/* Step 1: Business Information */}
             {step === 1 && (
               <>
                 <div className="space-y-2">
                   <Label htmlFor="businessName">Business Name *</Label>
                   <Input
                     id="businessName"
-                    placeholder="Enter your business name"
                     value={formData.businessName}
                     onChange={(e) => handleInputChange('businessName', e.target.value)}
+                    placeholder="Enter your business name"
+                    className="text-lg"
                   />
                 </div>
 
@@ -241,121 +287,133 @@ const CreateWebsiteForm: React.FC = () => {
                     </SelectTrigger>
                     <SelectContent>
                       {businessTypes.map((type) => (
-                        <SelectItem key={type} value={type}>{type}</SelectItem>
+                        <SelectItem key={type} value={type}>
+                          {type}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="businessDescription">Business Description *</Label>
+                  <Label htmlFor="description">Business Description</Label>
                   <Textarea
-                    id="businessDescription"
-                    placeholder="Describe what your business does, your unique value proposition, and what makes you special..."
-                    value={formData.businessDescription}
-                    onChange={(e) => handleInputChange('businessDescription', e.target.value)}
-                    rows={4}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="location">Location (Optional)</Label>
-                  <Input
-                    id="location"
-                    placeholder="City, State/Province, Country"
-                    value={formData.location}
-                    onChange={(e) => handleInputChange('location', e.target.value)}
+                    id="description"
+                    value={formData.description}
+                    onChange={(e) => handleInputChange('description', e.target.value)}
+                    placeholder="Briefly describe what your business does..."
+                    rows={3}
                   />
                 </div>
               </>
             )}
 
-            {/* Step 2: Target Audience */}
             {step === 2 && (
               <>
                 <div className="space-y-2">
                   <Label htmlFor="targetAudience">Target Audience *</Label>
-                  <Textarea
+                  <Input
                     id="targetAudience"
-                    placeholder="Describe your ideal customers: demographics, interests, pain points, needs..."
                     value={formData.targetAudience}
                     onChange={(e) => handleInputChange('targetAudience', e.target.value)}
-                    rows={4}
+                    placeholder="e.g., Small business owners, Families, Professionals"
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="services">Key Services/Products (Optional)</Label>
-                  <Textarea
-                    id="services"
-                    placeholder="List your main services or products..."
-                    value={formData.services}
-                    onChange={(e) => handleInputChange('services', e.target.value)}
-                    rows={3}
+                  <Label htmlFor="location">Location/Region *</Label>
+                  <Input
+                    id="location"
+                    value={formData.location}
+                    onChange={(e) => handleInputChange('location', e.target.value)}
+                    placeholder="e.g., San Francisco, California, Online"
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="goals">Website Goals (Optional)</Label>
-                  <Textarea
-                    id="goals"
-                    placeholder="What do you want your website to achieve? (e.g., generate leads, showcase portfolio, sell products...)"
-                    value={formData.goals}
-                    onChange={(e) => handleInputChange('goals', e.target.value)}
-                    rows={3}
-                  />
+                  <Label>Brand Tone *</Label>
+                  <div className="grid grid-cols-1 gap-3">
+                    {toneOptions.map((tone) => (
+                      <button
+                        key={tone.value}
+                        onClick={() => handleInputChange('tone', tone.value)}
+                        className={`p-4 rounded-lg border text-left transition-all ${
+                          formData.tone === tone.value
+                            ? 'border-indigo-500 bg-indigo-50 text-indigo-900'
+                            : 'border-slate-200 hover:border-slate-300'
+                        }`}
+                      >
+                        <div className="font-medium">{tone.label}</div>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </>
             )}
 
-            {/* Step 3: Style & Preferences */}
             {step === 3 && (
               <>
                 <div className="space-y-2">
-                  <Label htmlFor="tone">Website Tone & Style</Label>
-                  <Select value={formData.tone} onValueChange={(value) => handleInputChange('tone', value)}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {tones.map((tone) => (
-                        <SelectItem key={tone.value} value={tone.value}>{tone.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Label>Services/Products *</Label>
+                  <div className="flex space-x-2">
+                    <Input
+                      value={newService}
+                      onChange={(e) => setNewService(e.target.value)}
+                      placeholder="Add a service or product"
+                      onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addService())}
+                    />
+                    <Button onClick={addService} size="sm">
+                      <Plus className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </div>
 
-                <div className="bg-blue-50 p-4 rounded-lg">
-                  <h4 className="font-medium text-gray-900 mb-2">Preview: Your Website Will Include</h4>
-                  <ul className="text-sm text-gray-700 space-y-1">
-                    <li>• Professional homepage with compelling hero section</li>
-                    <li>• About page telling your business story</li>
-                    <li>• Services/Products showcase</li>
-                    <li>• Contact page with forms</li>
-                    <li>• Blog section for content marketing</li>
-                    <li>• FAQ section with relevant questions</li>
-                    <li>• SEO optimization for better search visibility</li>
-                    <li>• Mobile-responsive design</li>
-                  </ul>
+                {formData.services.length > 0 && (
+                  <div className="space-y-2">
+                    <Label>Added Services:</Label>
+                    <div className="flex flex-wrap gap-2">
+                      {formData.services.map((service) => (
+                        <Badge key={service} variant="secondary" className="px-3 py-1">
+                          {service}
+                          <button
+                            onClick={() => removeService(service)}
+                            className="ml-2 hover:text-red-600"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-lg p-6 border border-indigo-100">
+                  <div className="flex items-center space-x-3 mb-3">
+                    <Sparkles className="w-5 h-5 text-indigo-600" />
+                    <h3 className="font-semibold text-indigo-900">Ready to Generate!</h3>
+                  </div>
+                  <p className="text-indigo-700 text-sm">
+                    Our AI will create a complete website with pages, content, and SEO optimization based on your information.
+                  </p>
                 </div>
               </>
             )}
 
             {/* Navigation */}
             <div className="flex justify-between pt-6">
-              <Button 
-                variant="outline" 
-                onClick={handleBack}
-                disabled={step === 1}
-              >
-                Back
-              </Button>
+              {step > 1 ? (
+                <Button variant="outline" onClick={handleBack}>
+                  Back
+                </Button>
+              ) : (
+                <div />
+              )}
 
               {step < 3 ? (
                 <Button 
-                  onClick={handleNext}
+                  onClick={handleNext} 
                   disabled={!isStepValid()}
-                  className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700"
+                  className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700"
                 >
                   Next
                   <ArrowRight className="w-4 h-4 ml-2" />
@@ -363,20 +421,11 @@ const CreateWebsiteForm: React.FC = () => {
               ) : (
                 <Button 
                   onClick={handleGenerate}
-                  disabled={isGenerating || !isStepValid()}
-                  className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700"
+                  disabled={!isStepValid()}
+                  className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700"
                 >
-                  {isGenerating ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                      Generating Website...
-                    </>
-                  ) : (
-                    <>
-                      <Wand2 className="w-4 h-4 mr-2" />
-                      Generate My Website
-                    </>
-                  )}
+                  <Wand2 className="w-4 h-4 mr-2" />
+                  Generate Website
                 </Button>
               )}
             </div>

@@ -1,25 +1,14 @@
 
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
+import { Plus, Edit, Trash2, HelpCircle, Sparkles, Save } from 'lucide-react';
 import sdk from '@/lib/sdk';
 import { aiService } from '@/lib/ai';
-import { 
-  Plus, 
-  Edit, 
-  Trash2, 
-  HelpCircle,
-  Wand2,
-  Save,
-  Sparkles
-} from 'lucide-react';
 
 interface FAQ {
   id: string;
@@ -27,26 +16,26 @@ interface FAQ {
   question: string;
   answer: string;
   aiGenerated: boolean;
+  category: string;
 }
 
 interface FAQManagerProps {
   websiteId: string;
-  businessInfo?: any;
+  businessInfo: any;
 }
 
 const FAQManager: React.FC<FAQManagerProps> = ({ websiteId, businessInfo }) => {
   const { toast } = useToast();
-
   const [faqs, setFaqs] = useState<FAQ[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isEditing, setIsEditing] = useState(false);
-  const [isCreating, setIsCreating] = useState(false);
-  const [selectedFaq, setSelectedFaq] = useState<FAQ | null>(null);
-  const [editForm, setEditForm] = useState({
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [editingFaq, setEditingFaq] = useState<FAQ | null>(null);
+  const [formData, setFormData] = useState({
     question: '',
     answer: '',
+    category: 'general'
   });
-  const [isGenerating, setIsGenerating] = useState(false);
 
   useEffect(() => {
     loadFAQs();
@@ -56,130 +45,154 @@ const FAQManager: React.FC<FAQManagerProps> = ({ websiteId, businessInfo }) => {
     try {
       setIsLoading(true);
       const allFaqs = await sdk.get<FAQ>('faqs');
-      const websiteFaqs = allFaqs.filter(f => f.websiteId === websiteId);
+      const websiteFaqs = allFaqs.filter(faq => faq.websiteId === websiteId);
       setFaqs(websiteFaqs);
-    } catch (error) {
-      console.error('Failed to load FAQs:', error);
+    } catch (error: any) {
+      toast({
+        title: "Error loading FAQs",
+        description: error.message,
+        variant: "destructive",
+      });
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleCreateFAQ = async () => {
-    if (!editForm.question.trim() || !editForm.answer.trim()) {
+  const handleSubmit = async () => {
+    if (!formData.question.trim() || !formData.answer.trim()) {
       toast({
-        title: "Validation error",
-        description: "Both question and answer are required.",
+        title: "Missing information",
+        description: "Please fill in both question and answer.",
         variant: "destructive",
       });
       return;
     }
 
     try {
-      const newFaq = await sdk.insert<FAQ>('faqs', {
+      const faqData = {
         websiteId,
-        question: editForm.question,
-        answer: editForm.answer,
+        question: formData.question,
+        answer: formData.answer,
+        category: formData.category,
         aiGenerated: false
-      });
+      };
 
-      setFaqs([...faqs, newFaq]);
-      setIsCreating(false);
-      resetForm();
-      
-      toast({
-        title: "FAQ created",
-        description: "Your FAQ has been created successfully.",
-      });
+      if (editingFaq) {
+        await sdk.update('faqs', editingFaq.id, faqData);
+        toast({
+          title: "FAQ updated",
+          description: "FAQ has been updated successfully.",
+        });
+      } else {
+        await sdk.insert('faqs', faqData);
+        toast({
+          title: "FAQ created",
+          description: "FAQ has been created successfully.",
+        });
+      }
+
+      setIsDialogOpen(false);
+      setEditingFaq(null);
+      setFormData({ question: '', answer: '', category: 'general' });
+      loadFAQs();
     } catch (error: any) {
-      console.error('Create FAQ error:', error);
       toast({
-        title: "Creation failed",
-        description: error.message || "Failed to create FAQ.",
+        title: "Error saving FAQ",
+        description: error.message,
         variant: "destructive",
       });
     }
   };
 
-  const handleUpdateFAQ = async () => {
-    if (!selectedFaq || !editForm.question.trim() || !editForm.answer.trim()) return;
-
-    try {
-      const updatedFaq = await sdk.update<FAQ>('faqs', selectedFaq.id, {
-        question: editForm.question,
-        answer: editForm.answer,
-        aiGenerated: false
-      });
-
-      setFaqs(faqs.map(f => f.id === selectedFaq.id ? updatedFaq : f));
-      setIsEditing(false);
-      setSelectedFaq(null);
-      resetForm();
-      
-      toast({
-        title: "FAQ updated",
-        description: "Your FAQ has been updated successfully.",
-      });
-    } catch (error: any) {
-      console.error('Update FAQ error:', error);
-      toast({
-        title: "Update failed",
-        description: error.message || "Failed to update FAQ.",
-        variant: "destructive",
-      });
-    }
+  const handleEdit = (faq: FAQ) => {
+    setEditingFaq(faq);
+    setFormData({
+      question: faq.question,
+      answer: faq.answer,
+      category: faq.category
+    });
+    setIsDialogOpen(true);
   };
 
-  const handleDeleteFAQ = async (faqId: string) => {
+  const handleDelete = async (faqId: string) => {
     if (!confirm('Are you sure you want to delete this FAQ?')) return;
 
     try {
       await sdk.delete('faqs', faqId);
-      setFaqs(faqs.filter(f => f.id !== faqId));
-      
       toast({
         title: "FAQ deleted",
-        description: "The FAQ has been deleted.",
+        description: "FAQ has been deleted successfully.",
       });
+      loadFAQs();
     } catch (error: any) {
-      console.error('Delete FAQ error:', error);
       toast({
-        title: "Delete failed",
-        description: error.message || "Failed to delete FAQ.",
+        title: "Error deleting FAQ",
+        description: error.message,
         variant: "destructive",
       });
     }
   };
 
-  const handleGenerateFAQs = async () => {
+  const generateAnswer = async () => {
+    if (!formData.question.trim()) {
+      toast({
+        title: "Question required",
+        description: "Please enter a question first.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       setIsGenerating(true);
-      
-      const generatedFaqs = await aiService.generateFAQs(
-        businessInfo?.type || 'business',
-        businessInfo?.services?.split(',') || ['service']
+      const aiAnswer = await aiService.editContent(
+        formData.question,
+        `Generate a helpful answer for this FAQ question about ${businessInfo?.businessType || 'our business'}: "${formData.question}"`
       );
+      
+      setFormData(prev => ({ ...prev, answer: aiAnswer }));
+      
+      toast({
+        title: "Answer generated",
+        description: "AI has generated an answer for your question.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Generation failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
 
-      // Add generated FAQs to database
-      for (const faq of generatedFaqs) {
-        const newFaq = await sdk.insert<FAQ>('faqs', {
+  const generateCommonFAQs = async () => {
+    try {
+      setIsGenerating(true);
+      const commonFaqs = await aiService.generateFAQs(businessInfo);
+      
+      // Add all generated FAQs
+      for (const faq of commonFaqs) {
+        await sdk.insert('faqs', {
           websiteId,
           question: faq.question,
           answer: faq.answer,
+          category: 'general',
           aiGenerated: true
         });
-        setFaqs(prev => [...prev, newFaq]);
       }
 
+      loadFAQs();
+      
       toast({
         title: "FAQs generated",
-        description: `Generated ${generatedFaqs.length} FAQs for your business.`,
+        description: `Generated ${commonFaqs.length} common FAQs for your business.`,
       });
     } catch (error: any) {
-      console.error('Generate FAQs error:', error);
       toast({
         title: "Generation failed",
-        description: error.message || "Failed to generate FAQs.",
+        description: error.message,
         variant: "destructive",
       });
     } finally {
@@ -188,24 +201,8 @@ const FAQManager: React.FC<FAQManagerProps> = ({ websiteId, businessInfo }) => {
   };
 
   const resetForm = () => {
-    setEditForm({
-      question: '',
-      answer: '',
-    });
-  };
-
-  const startEdit = (faq: FAQ) => {
-    setSelectedFaq(faq);
-    setEditForm({
-      question: faq.question,
-      answer: faq.answer
-    });
-    setIsEditing(true);
-  };
-
-  const startCreate = () => {
-    resetForm();
-    setIsCreating(true);
+    setFormData({ question: '', answer: '', category: 'general' });
+    setEditingFaq(null);
   };
 
   if (isLoading) {
@@ -218,187 +215,170 @@ const FAQManager: React.FC<FAQManagerProps> = ({ websiteId, businessInfo }) => {
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Frequently Asked Questions</h2>
-          <p className="text-gray-600">Help your visitors find answers quickly</p>
+          <h2 className="text-2xl font-bold text-gray-900">FAQs</h2>
+          <p className="text-gray-600">Manage frequently asked questions</p>
         </div>
-        <div className="flex space-x-3">
-          <Button
-            variant="outline"
-            onClick={handleGenerateFAQs}
-            disabled={isGenerating}
-          >
-            {isGenerating ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
-                Generating...
-              </>
-            ) : (
-              <>
-                <Wand2 className="w-4 h-4 mr-2" />
-                AI Generate
-              </>
-            )}
-          </Button>
-          <Button onClick={startCreate} className="bg-gradient-to-r from-blue-500 to-purple-600">
-            <Plus className="w-4 h-4 mr-2" />
-            Add FAQ
-          </Button>
+        <div className="flex space-x-2">
+          {faqs.length === 0 && (
+            <Button 
+              onClick={generateCommonFAQs}
+              disabled={isGenerating}
+              variant="outline"
+            >
+              <Sparkles className="w-4 h-4 mr-2" />
+              {isGenerating ? 'Generating...' : 'Generate Common FAQs'}
+            </Button>
+          )}
+          <Dialog open={isDialogOpen} onOpenChange={(open) => {
+            setIsDialogOpen(open);
+            if (!open) resetForm();
+          }}>
+            <DialogTrigger asChild>
+              <Button className="bg-gradient-to-r from-blue-500 to-purple-600">
+                <Plus className="w-4 h-4 mr-2" />
+                New FAQ
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>
+                  {editingFaq ? 'Edit FAQ' : 'Create New FAQ'}
+                </DialogTitle>
+                <DialogDescription>
+                  {editingFaq ? 'Update your FAQ' : 'Add a new frequently asked question'}
+                </DialogDescription>
+              </DialogHeader>
+              
+              <div className="space-y-6 mt-6">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Question</label>
+                  <Input
+                    value={formData.question}
+                    onChange={(e) => setFormData(prev => ({ ...prev, question: e.target.value }))}
+                    placeholder="What is your most common question?"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-medium">Answer</label>
+                    <Button 
+                      onClick={generateAnswer}
+                      disabled={isGenerating || !formData.question}
+                      variant="outline"
+                      size="sm"
+                    >
+                      <Sparkles className="w-3 h-3 mr-1" />
+                      {isGenerating ? 'Generating...' : 'AI Generate'}
+                    </Button>
+                  </div>
+                  <Textarea
+                    value={formData.answer}
+                    onChange={(e) => setFormData(prev => ({ ...prev, answer: e.target.value }))}
+                    placeholder="Provide a helpful answer..."
+                    rows={4}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Category</label>
+                  <select
+                    value={formData.category}
+                    onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="general">General</option>
+                    <option value="pricing">Pricing</option>
+                    <option value="services">Services</option>
+                    <option value="support">Support</option>
+                    <option value="technical">Technical</option>
+                  </select>
+                </div>
+
+                <div className="flex justify-end space-x-2">
+                  <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button onClick={handleSubmit}>
+                    <Save className="w-4 h-4 mr-2" />
+                    {editingFaq ? 'Update FAQ' : 'Create FAQ'}
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
 
       {/* FAQs List */}
-      {faqs.length > 0 ? (
+      {faqs.length === 0 ? (
         <Card>
-          <CardHeader>
-            <CardTitle>Your FAQs</CardTitle>
-            <CardDescription>
-              Click on any question to expand the answer
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Accordion type="single" collapsible className="space-y-4">
-              {faqs.map((faq) => (
-                <AccordionItem key={faq.id} value={faq.id} className="border rounded-lg px-4">
-                  <AccordionTrigger className="hover:no-underline">
-                    <div className="flex items-center justify-between w-full pr-4">
-                      <div className="flex items-start space-x-3 text-left">
-                        <HelpCircle className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
-                        <span className="font-medium">{faq.question}</span>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        {faq.aiGenerated && (
-                          <Badge variant="secondary" className="bg-purple-100 text-purple-700">
-                            <Sparkles className="w-3 h-3 mr-1" />
-                            AI
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-                  </AccordionTrigger>
-                  <AccordionContent className="pt-2 pb-4">
-                    <div className="flex justify-between items-start">
-                      <p className="text-gray-700 flex-1 pr-4">{faq.answer}</p>
-                      <div className="flex space-x-2 flex-shrink-0">
-                        <Button size="sm" variant="outline" onClick={() => startEdit(faq)}>
-                          <Edit className="w-3 h-3" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleDeleteFAQ(faq.id)}
-                          className="text-red-600 hover:text-red-700"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </Button>
-                      </div>
-                    </div>
-                  </AccordionContent>
-                </AccordionItem>
-              ))}
-            </Accordion>
+          <CardContent className="text-center py-12">
+            <HelpCircle className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">No FAQs yet</h3>
+            <p className="text-gray-600 mb-6">
+              Create FAQs to help answer common questions from your visitors.
+            </p>
+            <div className="flex justify-center space-x-3">
+              <Button onClick={generateCommonFAQs} variant="outline">
+                <Sparkles className="w-4 h-4 mr-2" />
+                Generate Common FAQs
+              </Button>
+              <Button onClick={() => setIsDialogOpen(true)} className="bg-gradient-to-r from-blue-500 to-purple-600">
+                <Plus className="w-4 h-4 mr-2" />
+                Create First FAQ
+              </Button>
+            </div>
           </CardContent>
         </Card>
       ) : (
-        <div className="text-center py-12">
-          <div className="w-16 h-16 bg-gray-200 rounded-lg flex items-center justify-center mx-auto mb-4">
-            <HelpCircle className="w-8 h-8 text-gray-400" />
-          </div>
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">No FAQs yet</h3>
-          <p className="text-gray-600 mb-4">
-            Create FAQs to help your customers find answers quickly.
-          </p>
-          <div className="flex justify-center space-x-3">
-            <Button
-              variant="outline"
-              onClick={handleGenerateFAQs}
-              disabled={isGenerating}
-            >
-              {isGenerating ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
-                  Generating...
-                </>
-              ) : (
-                <>
-                  <Wand2 className="w-4 h-4 mr-2" />
-                  AI Generate FAQs
-                </>
-              )}
-            </Button>
-            <Button onClick={startCreate} className="bg-gradient-to-r from-blue-500 to-purple-600">
-              <Plus className="w-4 h-4 mr-2" />
-              Add Manually
-            </Button>
-          </div>
+        <div className="space-y-4">
+          {faqs.map((faq) => (
+            <Card key={faq.id} className="hover:shadow-md transition-shadow">
+              <CardHeader>
+                <div className="flex items-start justify-between">
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">{faq.question}</CardTitle>
+                    <CardDescription className="mt-1">
+                      Category: {faq.category}
+                      {faq.aiGenerated && (
+                        <span className="ml-2 inline-flex items-center">
+                          <Sparkles className="w-3 h-3 mr-1" />
+                          AI Generated
+                        </span>
+                      )}
+                    </CardDescription>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleEdit(faq)}
+                    >
+                      <Edit className="w-3 h-3 mr-1" />
+                      Edit
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleDelete(faq.id)}
+                      className="hover:bg-red-50 hover:border-red-200 hover:text-red-600"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-700 leading-relaxed">{faq.answer}</p>
+              </CardContent>
+            </Card>
+          ))}
         </div>
       )}
-
-      {/* Create/Edit Dialog */}
-      <Dialog open={isCreating || isEditing} onOpenChange={(open) => {
-        if (!open) {
-          setIsCreating(false);
-          setIsEditing(false);
-          setSelectedFaq(null);
-          resetForm();
-        }
-      }}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>
-              {isCreating ? 'Add New FAQ' : 'Edit FAQ'}
-            </DialogTitle>
-            <DialogDescription>
-              {isCreating ? 'Create a new frequently asked question' : 'Update the FAQ content'}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="question">Question *</Label>
-              <Input
-                id="question"
-                value={editForm.question}
-                onChange={(e) => setEditForm({...editForm, question: e.target.value})}
-                placeholder="What question do customers frequently ask?"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="answer">Answer *</Label>
-              <Textarea
-                id="answer"
-                value={editForm.answer}
-                onChange={(e) => setEditForm({...editForm, answer: e.target.value})}
-                placeholder="Provide a helpful and detailed answer..."
-                rows={4}
-              />
-            </div>
-          </div>
-
-          <div className="flex items-center justify-end space-x-3 pt-4">
-            <Button
-              variant="outline"
-              onClick={() => {
-                setIsCreating(false);
-                setIsEditing(false);
-                setSelectedFaq(null);
-                resetForm();
-              }}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={isCreating ? handleCreateFAQ : handleUpdateFAQ}
-              className="bg-gradient-to-r from-blue-500 to-purple-600"
-            >
-              <Save className="w-4 h-4 mr-2" />
-              {isCreating ? 'Add FAQ' : 'Update FAQ'}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };

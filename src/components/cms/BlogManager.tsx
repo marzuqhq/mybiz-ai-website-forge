@@ -1,38 +1,26 @@
 
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { Plus, Edit, Trash2, Calendar, Tag, Sparkles, Save } from 'lucide-react';
 import sdk from '@/lib/sdk';
 import { aiService } from '@/lib/ai';
-import { 
-  Plus, 
-  Edit, 
-  Trash2, 
-  Eye, 
-  Calendar, 
-  Tag,
-  Wand2,
-  Save,
-  X
-} from 'lucide-react';
 
-interface Post {
+interface BlogPost {
   id: string;
   websiteId: string;
   title: string;
   slug: string;
   markdownBody: string;
+  excerpt: string;
   tags: string[];
   publishedAt: string;
-  summary: string;
+  status: string;
 }
 
 interface BlogManagerProps {
@@ -40,21 +28,18 @@ interface BlogManagerProps {
 }
 
 const BlogManager: React.FC<BlogManagerProps> = ({ websiteId }) => {
-  const { user } = useAuth();
   const { toast } = useToast();
-
-  const [posts, setPosts] = useState<Post[]>([]);
+  const [posts, setPosts] = useState<BlogPost[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedPost, setSelectedPost] = useState<Post | null>(null);
-  const [isEditing, setIsEditing] = useState(false);
-  const [isCreating, setIsCreating] = useState(false);
-  const [editForm, setEditForm] = useState({
-    title: '',
-    summary: '',
-    markdownBody: '',
-    tags: '',
-  });
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [editingPost, setEditingPost] = useState<BlogPost | null>(null);
+  const [formData, setFormData] = useState({
+    title: '',
+    content: '',
+    excerpt: '',
+    tags: ''
+  });
 
   useEffect(() => {
     loadPosts();
@@ -63,134 +48,127 @@ const BlogManager: React.FC<BlogManagerProps> = ({ websiteId }) => {
   const loadPosts = async () => {
     try {
       setIsLoading(true);
-      const allPosts = await sdk.get<Post>('posts');
-      const websitePosts = allPosts.filter(p => p.websiteId === websiteId);
-      setPosts(websitePosts.sort((a, b) => 
-        new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
-      ));
-    } catch (error) {
-      console.error('Failed to load posts:', error);
+      const allPosts = await sdk.get<BlogPost>('posts');
+      const websitePosts = allPosts.filter(post => post.websiteId === websiteId);
+      setPosts(websitePosts);
+    } catch (error: any) {
+      toast({
+        title: "Error loading posts",
+        description: error.message,
+        variant: "destructive",
+      });
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleCreatePost = async () => {
-    if (!editForm.title.trim() || !editForm.markdownBody.trim()) {
+  const handleSubmit = async () => {
+    if (!formData.title.trim()) {
       toast({
-        title: "Validation error",
-        description: "Title and content are required.",
+        title: "Title required",
+        description: "Please enter a post title.",
         variant: "destructive",
       });
       return;
     }
 
     try {
-      const newPost = await sdk.insert<Post>('posts', {
+      const postData = {
         websiteId,
-        title: editForm.title,
-        slug: editForm.title.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''),
-        markdownBody: editForm.markdownBody,
-        summary: editForm.summary,
-        tags: editForm.tags.split(',').map(t => t.trim()).filter(Boolean),
-        publishedAt: new Date().toISOString()
-      });
+        title: formData.title,
+        slug: formData.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''),
+        markdownBody: formData.content,
+        excerpt: formData.excerpt || formData.content.substring(0, 200) + '...',
+        tags: formData.tags.split(',').map(tag => tag.trim()).filter(Boolean),
+        publishedAt: new Date().toISOString(),
+        status: 'published'
+      };
 
-      setPosts([newPost, ...posts]);
-      setIsCreating(false);
-      resetForm();
-      
-      toast({
-        title: "Post created",
-        description: "Your blog post has been created successfully.",
-      });
+      if (editingPost) {
+        await sdk.update('posts', editingPost.id, postData);
+        toast({
+          title: "Post updated",
+          description: "Blog post has been updated successfully.",
+        });
+      } else {
+        await sdk.insert('posts', postData);
+        toast({
+          title: "Post created",
+          description: "Blog post has been created successfully.",
+        });
+      }
+
+      setIsDialogOpen(false);
+      setEditingPost(null);
+      setFormData({ title: '', content: '', excerpt: '', tags: '' });
+      loadPosts();
     } catch (error: any) {
-      console.error('Create post error:', error);
       toast({
-        title: "Creation failed",
-        description: error.message || "Failed to create post.",
+        title: "Error saving post",
+        description: error.message,
         variant: "destructive",
       });
     }
   };
 
-  const handleUpdatePost = async () => {
-    if (!selectedPost || !editForm.title.trim() || !editForm.markdownBody.trim()) return;
-
-    try {
-      const updatedPost = await sdk.update<Post>('posts', selectedPost.id, {
-        title: editForm.title,
-        summary: editForm.summary,
-        markdownBody: editForm.markdownBody,
-        tags: editForm.tags.split(',').map(t => t.trim()).filter(Boolean),
-      });
-
-      setPosts(posts.map(p => p.id === selectedPost.id ? updatedPost : p));
-      setIsEditing(false);
-      setSelectedPost(null);
-      resetForm();
-      
-      toast({
-        title: "Post updated",
-        description: "Your blog post has been updated successfully.",
-      });
-    } catch (error: any) {
-      console.error('Update post error:', error);
-      toast({
-        title: "Update failed",
-        description: error.message || "Failed to update post.",
-        variant: "destructive",
-      });
-    }
+  const handleEdit = (post: BlogPost) => {
+    setEditingPost(post);
+    setFormData({
+      title: post.title,
+      content: post.markdownBody,
+      excerpt: post.excerpt,
+      tags: post.tags.join(', ')
+    });
+    setIsDialogOpen(true);
   };
 
-  const handleDeletePost = async (postId: string) => {
-    if (!confirm('Are you sure you want to delete this blog post?')) return;
+  const handleDelete = async (postId: string) => {
+    if (!confirm('Are you sure you want to delete this post?')) return;
 
     try {
       await sdk.delete('posts', postId);
-      setPosts(posts.filter(p => p.id !== postId));
-      
       toast({
         title: "Post deleted",
-        description: "The blog post has been deleted.",
+        description: "Blog post has been deleted successfully.",
       });
+      loadPosts();
     } catch (error: any) {
-      console.error('Delete post error:', error);
       toast({
-        title: "Delete failed",
-        description: error.message || "Failed to delete post.",
+        title: "Error deleting post",
+        description: error.message,
         variant: "destructive",
       });
     }
   };
 
-  const handleGeneratePost = async () => {
+  const generateWithAI = async () => {
+    if (!formData.title) {
+      toast({
+        title: "Title required",
+        description: "Please enter a title first.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       setIsGenerating(true);
+      const aiResult = await aiService.generateBlogPost(formData.title);
+      setFormData(prev => ({
+        ...prev,
+        content: aiResult.content,
+        excerpt: aiResult.excerpt,
+        tags: aiResult.tags.join(', ')
+      }));
       
-      const generatedPost = await aiService.generateBlogPost(
-        editForm.title || 'Blog post for your business',
-        editForm.tags.split(',').map(t => t.trim()).filter(Boolean),
-        'professional'
-      );
-
-      setEditForm({
-        title: generatedPost.title,
-        summary: generatedPost.summary,
-        markdownBody: generatedPost.content,
-        tags: generatedPost.tags.join(', ')
-      });
-
       toast({
         title: "Content generated",
-        description: "AI has generated blog post content for you.",
+        description: "AI has generated blog content for you.",
       });
     } catch (error: any) {
-      console.error('Generate post error:', error);
       toast({
         title: "Generation failed",
-        description: error.message || "Failed to generate content.",
+        description: error.message,
         variant: "destructive",
       });
     } finally {
@@ -199,28 +177,8 @@ const BlogManager: React.FC<BlogManagerProps> = ({ websiteId }) => {
   };
 
   const resetForm = () => {
-    setEditForm({
-      title: '',
-      summary: '',
-      markdownBody: '',
-      tags: '',
-    });
-  };
-
-  const startEdit = (post: Post) => {
-    setSelectedPost(post);
-    setEditForm({
-      title: post.title,
-      summary: post.summary,
-      markdownBody: post.markdownBody,
-      tags: post.tags.join(', ')
-    });
-    setIsEditing(true);
-  };
-
-  const startCreate = () => {
-    resetForm();
-    setIsCreating(true);
+    setFormData({ title: '', content: '', excerpt: '', tags: '' });
+    setEditingPost(null);
   };
 
   if (isLoading) {
@@ -233,194 +191,173 @@ const BlogManager: React.FC<BlogManagerProps> = ({ websiteId }) => {
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Blog Posts</h2>
-          <p className="text-gray-600">Manage your blog content and engage your audience</p>
+          <p className="text-gray-600">Create and manage your blog content</p>
         </div>
-        <Button onClick={startCreate} className="bg-gradient-to-r from-blue-500 to-purple-600">
-          <Plus className="w-4 h-4 mr-2" />
-          New Post
-        </Button>
+        <Dialog open={isDialogOpen} onOpenChange={(open) => {
+          setIsDialogOpen(open);
+          if (!open) resetForm();
+        }}>
+          <DialogTrigger asChild>
+            <Button className="bg-gradient-to-r from-blue-500 to-purple-600">
+              <Plus className="w-4 h-4 mr-2" />
+              New Post
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>
+                {editingPost ? 'Edit Blog Post' : 'Create New Blog Post'}
+              </DialogTitle>
+              <DialogDescription>
+                {editingPost ? 'Update your blog post content' : 'Create engaging content for your blog'}
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="space-y-6 mt-6">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Title</label>
+                <div className="flex space-x-2">
+                  <Input
+                    value={formData.title}
+                    onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
+                    placeholder="Enter blog post title..."
+                  />
+                  <Button 
+                    onClick={generateWithAI}
+                    disabled={isGenerating || !formData.title}
+                    variant="outline"
+                  >
+                    <Sparkles className="w-4 h-4 mr-2" />
+                    {isGenerating ? 'Generating...' : 'AI Generate'}
+                  </Button>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Content (Markdown)</label>
+                <Textarea
+                  value={formData.content}
+                  onChange={(e) => setFormData(prev => ({ ...prev, content: e.target.value }))}
+                  placeholder="Write your blog post content in markdown..."
+                  rows={12}
+                  className="font-mono text-sm"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Excerpt</label>
+                <Textarea
+                  value={formData.excerpt}
+                  onChange={(e) => setFormData(prev => ({ ...prev, excerpt: e.target.value }))}
+                  placeholder="Brief description of the post..."
+                  rows={3}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Tags (comma-separated)</label>
+                <Input
+                  value={formData.tags}
+                  onChange={(e) => setFormData(prev => ({ ...prev, tags: e.target.value }))}
+                  placeholder="business, tips, advice..."
+                />
+              </div>
+
+              <div className="flex justify-end space-x-2">
+                <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleSubmit}>
+                  <Save className="w-4 h-4 mr-2" />
+                  {editingPost ? 'Update Post' : 'Create Post'}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
 
       {/* Posts List */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {posts.map((post) => (
-          <Card key={post.id} className="hover:shadow-lg transition-shadow">
-            <CardHeader>
-              <CardTitle className="text-lg line-clamp-2">{post.title}</CardTitle>
-              <CardDescription className="line-clamp-3">{post.summary}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                <div className="flex items-center text-sm text-gray-500">
-                  <Calendar className="w-4 h-4 mr-2" />
-                  {new Date(post.publishedAt).toLocaleDateString()}
+      {posts.length === 0 ? (
+        <Card>
+          <CardContent className="text-center py-12">
+            <Calendar className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">No blog posts yet</h3>
+            <p className="text-gray-600 mb-6">
+              Create your first blog post to start sharing content with your audience.
+            </p>
+            <Button onClick={() => setIsDialogOpen(true)} className="bg-gradient-to-r from-blue-500 to-purple-600">
+              <Plus className="w-4 h-4 mr-2" />
+              Create First Post
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {posts.map((post) => (
+            <Card key={post.id} className="hover:shadow-lg transition-shadow">
+              <CardHeader>
+                <div className="flex items-start justify-between">
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg line-clamp-2">{post.title}</CardTitle>
+                    <CardDescription className="mt-2">
+                      {new Date(post.publishedAt).toLocaleDateString()}
+                    </CardDescription>
+                  </div>
+                  <Badge variant={post.status === 'published' ? 'default' : 'secondary'}>
+                    {post.status}
+                  </Badge>
                 </div>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600 text-sm line-clamp-3 mb-4">
+                  {post.excerpt}
+                </p>
                 
                 {post.tags.length > 0 && (
-                  <div className="flex flex-wrap gap-1">
-                    {post.tags.slice(0, 3).map((tag, index) => (
-                      <Badge key={index} variant="secondary" className="text-xs">
+                  <div className="flex flex-wrap gap-1 mb-4">
+                    {post.tags.slice(0, 3).map((tag) => (
+                      <Badge key={tag} variant="outline" className="text-xs">
+                        <Tag className="w-3 h-3 mr-1" />
                         {tag}
                       </Badge>
                     ))}
                     {post.tags.length > 3 && (
-                      <Badge variant="secondary" className="text-xs">
-                        +{post.tags.length - 3}
+                      <Badge variant="outline" className="text-xs">
+                        +{post.tags.length - 3} more
                       </Badge>
                     )}
                   </div>
                 )}
 
-                <div className="flex items-center space-x-2 pt-2">
-                  <Button size="sm" variant="outline" onClick={() => startEdit(post)}>
+                <div className="flex items-center space-x-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleEdit(post)}
+                    className="flex-1"
+                  >
                     <Edit className="w-3 h-3 mr-1" />
                     Edit
                   </Button>
                   <Button
-                    size="sm"
                     variant="outline"
-                    onClick={() => handleDeletePost(post.id)}
-                    className="text-red-600 hover:text-red-700"
+                    size="sm"
+                    onClick={() => handleDelete(post.id)}
+                    className="hover:bg-red-50 hover:border-red-200 hover:text-red-600"
                   >
                     <Trash2 className="w-3 h-3" />
                   </Button>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {posts.length === 0 && (
-        <div className="text-center py-12">
-          <div className="w-16 h-16 bg-gray-200 rounded-lg flex items-center justify-center mx-auto mb-4">
-            <Edit className="w-8 h-8 text-gray-400" />
-          </div>
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">No blog posts yet</h3>
-          <p className="text-gray-600 mb-4">
-            Create your first blog post to start engaging with your audience.
-          </p>
-          <Button onClick={startCreate} className="bg-gradient-to-r from-blue-500 to-purple-600">
-            <Plus className="w-4 h-4 mr-2" />
-            Create Your First Post
-          </Button>
+              </CardContent>
+            </Card>
+          ))}
         </div>
       )}
-
-      {/* Create/Edit Dialog */}
-      <Dialog open={isCreating || isEditing} onOpenChange={(open) => {
-        if (!open) {
-          setIsCreating(false);
-          setIsEditing(false);
-          setSelectedPost(null);
-          resetForm();
-        }
-      }}>
-        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
-          <DialogHeader>
-            <DialogTitle>
-              {isCreating ? 'Create New Post' : 'Edit Post'}
-            </DialogTitle>
-            <DialogDescription>
-              {isCreating ? 'Write a new blog post for your website' : 'Update your blog post content'}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="flex-1 overflow-y-auto space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="title">Title *</Label>
-                <Input
-                  id="title"
-                  value={editForm.title}
-                  onChange={(e) => setEditForm({...editForm, title: e.target.value})}
-                  placeholder="Enter post title..."
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="tags">Tags</Label>
-                <Input
-                  id="tags"
-                  value={editForm.tags}
-                  onChange={(e) => setEditForm({...editForm, tags: e.target.value})}
-                  placeholder="tag1, tag2, tag3..."
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="summary">Summary</Label>
-              <Textarea
-                id="summary"
-                value={editForm.summary}
-                onChange={(e) => setEditForm({...editForm, summary: e.target.value})}
-                placeholder="Brief summary of your post..."
-                rows={2}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="content">Content *</Label>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={handleGeneratePost}
-                  disabled={isGenerating}
-                >
-                  {isGenerating ? (
-                    <>
-                      <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-600 mr-2"></div>
-                      Generating...
-                    </>
-                  ) : (
-                    <>
-                      <Wand2 className="w-3 h-3 mr-2" />
-                      AI Generate
-                    </>
-                  )}
-                </Button>
-              </div>
-              <Textarea
-                id="content"
-                value={editForm.markdownBody}
-                onChange={(e) => setEditForm({...editForm, markdownBody: e.target.value})}
-                placeholder="Write your post content in Markdown..."
-                rows={12}
-                className="font-mono text-sm"
-              />
-              <p className="text-xs text-gray-500">
-                Supports Markdown formatting (headers, links, lists, etc.)
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-end space-x-3 pt-4 border-t">
-            <Button
-              variant="outline"
-              onClick={() => {
-                setIsCreating(false);
-                setIsEditing(false);
-                setSelectedPost(null);
-                resetForm();
-              }}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={isCreating ? handleCreatePost : handleUpdatePost}
-              className="bg-gradient-to-r from-blue-500 to-purple-600"
-            >
-              <Save className="w-4 h-4 mr-2" />
-              {isCreating ? 'Create Post' : 'Update Post'}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };
