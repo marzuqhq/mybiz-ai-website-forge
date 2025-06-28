@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -75,7 +74,7 @@ const ContentManager: React.FC = () => {
       const newPost = await sdk.insert('blog_posts', {
         title: 'New Blog Post',
         content: 'Start writing your content here...',
-        status: 'draft',
+        status: 'draft' as const,
         author: 'Admin',
         slug: `new-post-${Date.now()}`,
         createdAt: new Date().toISOString()
