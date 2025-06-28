@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import Header from "@/components/layout/Header";
+import LiveChat from "@/components/chat/LiveChat";
 import Index from "./pages/Index";
 import LoginForm from "./components/auth/LoginForm";
 import RegisterForm from "./components/auth/RegisterForm";
@@ -88,6 +89,9 @@ const App = () => (
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
+            
+            {/* AI-Powered Live Chat */}
+            <LiveChat />
           </div>
         </BrowserRouter>
       </AuthProvider>

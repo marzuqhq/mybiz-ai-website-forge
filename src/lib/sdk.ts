@@ -1,10 +1,10 @@
-
 import UniversalSDK, { 
   UniversalSDKConfig, 
   User, 
   Session,
   CloudinaryUploadResult 
 } from './UniversalSDK';
+import { enhancedSDKConfig } from './enhanced-sdk-config';
 
 // Enhanced SDK Configuration with all required schemas
 const sdkConfig: UniversalSDKConfig = {
@@ -380,6 +380,7 @@ const sdkConfig: UniversalSDKConfig = {
         browsers: [],
       },
     },
+    ...enhancedSDKConfig.schemas,
   },
   templates: {
     otp: `
