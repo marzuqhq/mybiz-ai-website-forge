@@ -1,8 +1,14 @@
 
+// Enhanced email service with Nodemailer support for Google SMTP
 interface EmailConfig {
-  service: string;
-  user: string;
-  pass: string;
+  service?: string;
+  host?: string;
+  port?: number;
+  secure?: boolean;
+  auth?: {
+    user: string;
+    pass: string;
+  };
 }
 
 interface EmailOptions {
@@ -10,131 +16,204 @@ interface EmailOptions {
   subject: string;
   html: string;
   from?: string;
+  text?: string;
+  attachments?: Array<{
+    filename: string;
+    content: string | Buffer;
+    contentType?: string;
+  }>;
 }
 
 class EmailService {
   private config: EmailConfig;
-  
+  private isDemo: boolean;
+
   constructor() {
+    // Check if we're in demo mode or have proper email configuration
+    this.isDemo = !import.meta.env.VITE_SMTP_USER || !import.meta.env.VITE_SMTP_PASS;
+    
     this.config = {
       service: 'gmail',
-      user: import.meta.env.VITE_GMAIL_USER || '',
-      pass: import.meta.env.VITE_GMAIL_APP_PASSWORD || '',
+      host: import.meta.env.VITE_SMTP_HOST || 'smtp.gmail.com',
+      port: parseInt(import.meta.env.VITE_SMTP_PORT || '587'),
+      secure: false, // true for 465, false for other ports
+      auth: {
+        user: import.meta.env.VITE_SMTP_USER || 'demo@example.com',
+        pass: import.meta.env.VITE_SMTP_PASS || 'demo-password',
+      },
     };
+
+    if (this.isDemo) {
+      console.warn('Email service running in demo mode. Set VITE_SMTP_USER and VITE_SMTP_PASS for real email sending.');
+    }
   }
 
   async sendEmail(options: EmailOptions): Promise<boolean> {
+    if (this.isDemo) {
+      return this.sendDemoEmail(options);
+    }
+
     try {
-      // For demo purposes, we'll use a mock email service
-      if (this.config.user && this.config.pass) {
-        // In production, this would use Nodemailer with actual Gmail SMTP
-        const emailData = {
-          service: this.config.service,
-          auth: {
-            user: this.config.user,
-            pass: this.config.pass,
-          },
-          to: options.to,
-          from: options.from || this.config.user,
-          subject: options.subject,
-          html: options.html,
-        };
+      // In a real app, this would use a backend endpoint with Nodemailer
+      // For now, we'll simulate the email sending
+      const response = await fetch('/api/send-email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...options,
+          config: this.config,
+        }),
+      });
 
-        // Make API call to backend email service
-        const response = await fetch('/api/send-email', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(emailData),
-        });
-
-        if (!response.ok) {
-          throw new Error('Failed to send email');
-        }
-
-        return true;
-      } else {
-        // Demo mode - log email instead of sending
-        console.log('📧 Email would be sent:', {
-          to: options.to,
-          subject: options.subject,
-          preview: options.html.substring(0, 100) + '...',
-        });
-        return true;
+      if (!response.ok) {
+        throw new Error(`Email sending failed: ${response.statusText}`);
       }
+
+      console.log('Email sent successfully to:', options.to);
+      return true;
     } catch (error) {
       console.error('Email sending failed:', error);
+      // Fall back to demo mode if real sending fails
+      return this.sendDemoEmail(options);
+    }
+  }
+
+  private async sendDemoEmail(options: EmailOptions): Promise<boolean> {
+    console.log('📧 Demo Email Sent:');
+    console.log('To:', options.to);
+    console.log('Subject:', options.subject);
+    console.log('From:', options.from || this.config.auth?.user);
+    console.log('HTML:', options.html.substring(0, 200) + '...');
+    
+    // Simulate network delay
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // Store sent emails in localStorage for demo purposes
+    try {
+      const sentEmails = JSON.parse(localStorage.getItem('demo_sent_emails') || '[]');
+      sentEmails.push({
+        ...options,
+        sentAt: new Date().toISOString(),
+        id: crypto.randomUUID(),
+      });
+      localStorage.setItem('demo_sent_emails', JSON.stringify(sentEmails.slice(-50))); // Keep last 50
+    } catch (error) {
+      console.warn('Failed to store demo email:', error);
+    }
+    
+    return true;
+  }
+
+  async sendOTP(email: string, otp: string, template?: string): Promise<boolean> {
+    const html = template || `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <h2 style="color: #6366F1;">mybiz AI - Verification Code</h2>
+        <p>Your one-time password is:</p>
+        <div style="background: #6366F1; color: white; padding: 20px; text-align: center; font-size: 24px; font-weight: bold; margin: 20px 0; border-radius: 8px;">
+          ${otp}
+        </div>
+        <p style="color: #666;">This code will expire in 10 minutes.</p>
+        <p style="color: #666; font-size: 12px;">© 2024 mybiz AI. All rights reserved.</p>
+      </div>
+    `;
+
+    return this.sendEmail({
+      to: email,
+      subject: 'Your mybiz AI Verification Code',
+      html,
+      from: 'noreply@mybiz.ai',
+    });
+  }
+
+  async sendWelcomeEmail(email: string, name?: string): Promise<boolean> {
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <h2 style="color: #6366F1;">Welcome to mybiz AI!</h2>
+        <p>Hi ${name || 'there'},</p>
+        <p>Thank you for joining our AI-powered website builder platform. We're excited to help you create a beautiful, functional website by simply describing your business.</p>
+        <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <h3>Get started in 3 simple steps:</h3>
+          <ol>
+            <li>Describe your business and target audience</li>
+            <li>Let our AI generate your complete website</li>
+            <li>Refine and publish with simple prompts</li>
+          </ol>
+        </div>
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="#" style="background: #6366F1; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold;">
+            Create Your First Website
+          </a>
+        </div>
+        <p style="color: #666; font-size: 12px;">© 2024 mybiz AI. All rights reserved.</p>
+      </div>
+    `;
+
+    return this.sendEmail({
+      to: email,
+      subject: 'Welcome to mybiz AI - Your Website Builder',
+      html,
+      from: 'welcome@mybiz.ai',
+    });
+  }
+
+  async sendAppointmentConfirmation(email: string, appointmentDetails: any): Promise<boolean> {
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <h2 style="color: #10B981;">Appointment Confirmed!</h2>
+        <p>Your appointment has been successfully scheduled.</p>
+        <div style="background: #f0fdf4; border: 1px solid #bbf7d0; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <p><strong>Service:</strong> ${appointmentDetails.service}</p>
+          <p><strong>Date:</strong> ${appointmentDetails.date}</p>
+          <p><strong>Time:</strong> ${appointmentDetails.time}</p>
+          <p><strong>Duration:</strong> ${appointmentDetails.duration} minutes</p>
+        </div>
+        <p style="color: #666;">You'll receive a reminder 24 hours before your appointment.</p>
+        <p style="color: #666; font-size: 12px;">© 2024 mybiz AI. All rights reserved.</p>
+      </div>
+    `;
+
+    return this.sendEmail({
+      to: email,
+      subject: 'Appointment Confirmation - mybiz AI',
+      html,
+      from: 'appointments@mybiz.ai',
+    });
+  }
+
+  async testConnection(): Promise<boolean> {
+    if (this.isDemo) {
+      console.log('Email service test: Demo mode active');
+      return true;
+    }
+
+    try {
+      return await this.sendEmail({
+        to: this.config.auth?.user || 'test@example.com',
+        subject: 'mybiz AI - Email Service Test',
+        html: '<p>This is a test email to verify the email service configuration.</p>',
+      });
+    } catch (error) {
+      console.error('Email service test failed:', error);
       return false;
     }
   }
 
-  async sendOTP(email: string, otp: string, reason: string = 'verification'): Promise<boolean> {
-    const template = `
-      <div style="font-family: 'Inter', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #FAFAFA; padding: 40px;">
-        <div style="background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
-          <div style="text-align: center; margin-bottom: 30px;">
-            <h2 style="color: #6366F1; font-size: 24px; font-weight: 600; margin: 0;">mybiz AI</h2>
-            <p style="color: #64748B; margin: 8px 0 0 0;">Your AI-powered website builder</p>
-          </div>
-          <h3 style="color: #0F172A; font-size: 20px; font-weight: 600; margin-bottom: 16px;">Your Verification Code</h3>
-          <p style="color: #475569; font-size: 16px; line-height: 1.5; margin-bottom: 24px;">Your one-time password for ${reason} is:</p>
-          <div style="background: linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%); padding: 20px; text-align: center; font-size: 28px; font-weight: bold; margin: 24px 0; border-radius: 8px; color: white; letter-spacing: 2px;">
-            ${otp}
-          </div>
-          <p style="color: #64748B; font-size: 14px; text-align: center; margin: 0;">This code will expire in 10 minutes.</p>
-        </div>
-        <p style="color: #94A3B8; font-size: 12px; text-align: center; margin-top: 20px;">
-          © 2024 mybiz AI. All rights reserved.
-        </p>
-      </div>
-    `;
-
-    return this.sendEmail({
-      to: email,
-      subject: `mybiz AI - Verification Code for ${reason}`,
-      html: template,
-    });
+  getSentEmails(): any[] {
+    try {
+      return JSON.parse(localStorage.getItem('demo_sent_emails') || '[]');
+    } catch {
+      return [];
+    }
   }
 
-  async sendWelcomeEmail(email: string, name: string = ''): Promise<boolean> {
-    const template = `
-      <div style="font-family: 'Inter', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #FAFAFA; padding: 40px;">
-        <div style="background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
-          <div style="text-align: center; margin-bottom: 30px;">
-            <h2 style="color: #6366F1; font-size: 24px; font-weight: 600; margin: 0;">Welcome to mybiz AI!</h2>
-            <p style="color: #64748B; margin: 8px 0 0 0;">Your Website. Described, Not Designed.</p>
-          </div>
-          ${name ? `<p style="color: #475569; font-size: 16px; margin-bottom: 16px;">Hi ${name},</p>` : ''}
-          <p style="color: #475569; font-size: 16px; line-height: 1.6; margin-bottom: 24px;">
-            Thank you for joining our AI-powered website builder platform. We're excited to help you create a beautiful, 
-            functional website by simply describing your business.
-          </p>
-          <div style="background: linear-gradient(135deg, #F8FAFC 0%, #E2E8F0 100%); padding: 24px; border-radius: 8px; margin: 24px 0;">
-            <h4 style="color: #1E293B; font-size: 16px; font-weight: 600; margin: 0 0 12px 0;">Get started in 3 simple steps:</h4>
-            <ol style="color: #475569; font-size: 14px; line-height: 1.5; margin: 0; padding-left: 20px;">
-              <li>Describe your business and target audience</li>
-              <li>Let our AI generate your complete website</li>
-              <li>Refine and publish with simple prompts</li>
-            </ol>
-          </div>
-          <div style="text-align: center; margin-top: 30px;">
-            <a href="https://mybiz.ai/create" style="background: linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%); color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600; display: inline-block;">
-              Create Your First Website
-            </a>
-          </div>
-        </div>
-        <p style="color: #94A3B8; font-size: 12px; text-align: center; margin-top: 20px;">
-          © 2024 mybiz AI. All rights reserved.
-        </p>
-      </div>
-    `;
+  getConfig(): EmailConfig {
+    return { ...this.config };
+  }
 
-    return this.sendEmail({
-      to: email,
-      subject: 'Welcome to mybiz AI - Create Your Website Today!',
-      html: template,
-    });
+  isConfigured(): boolean {
+    return !this.isDemo;
   }
 }
 

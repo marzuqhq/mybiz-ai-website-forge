@@ -609,23 +609,43 @@ const sdkConfig: UniversalSDKConfig = {
 // Initialize SDK
 export const sdk = new UniversalSDK(sdkConfig);
 
-// Enhanced demo mode with proper initialization
-if (!import.meta.env.VITE_GITHUB_TOKEN || import.meta.env.VITE_GITHUB_TOKEN === 'demo-token') {
-  console.warn('GitHub not configured, using localStorage for demo');
+// Force demo mode when GitHub is not properly configured
+const isGitHubConfigured = import.meta.env.VITE_GITHUB_TOKEN && 
+                          import.meta.env.VITE_GITHUB_TOKEN !== 'demo-token' &&
+                          import.meta.env.VITE_GITHUB_OWNER &&
+                          import.meta.env.VITE_GITHUB_REPO;
+
+if (!isGitHubConfigured) {
+  console.warn('GitHub not configured properly, using localStorage for demo mode');
   
-  // Initialize demo data
+  // Get all collection names from schemas
+  const getAllCollections = () => {
+    const baseCollections = ['blog_posts', 'contacts'];
+    const schemaCollections = Object.keys(sdkConfig.schemas || {});
+    return [...new Set([...baseCollections, ...schemaCollections])];
+  };
+  
+  // Initialize demo data with proper error handling
   const initializeDemoData = () => {
-    const collections = ['users', 'websites', 'pages', 'blocks', 'posts', 'products', 'faqs', 'submissions', 'testimonials', 'appointments', 'newsletters', 'domains', 'analytics', 'blog_posts', 'contacts', 'crm_contacts', 'email_campaigns', 'invoices', 'form_builder'];
+    const collections = getAllCollections();
     
     collections.forEach(collection => {
-      if (!localStorage.getItem(`demo_${collection}`)) {
-        localStorage.setItem(`demo_${collection}`, JSON.stringify([]));
+      try {
+        const key = `demo_${collection}`;
+        if (!localStorage.getItem(key)) {
+          localStorage.setItem(key, JSON.stringify([]));
+          console.log(`Initialized demo collection: ${collection}`);
+        }
+      } catch (error) {
+        console.warn(`Failed to initialize collection ${collection}:`, error);
       }
     });
   };
   
+  // Initialize demo data
   initializeDemoData();
   
+  // Override SDK methods for demo mode
   const originalGet = sdk.get.bind(sdk);
   const originalInsert = sdk.insert.bind(sdk);
   const originalUpdate = sdk.update.bind(sdk);
@@ -633,48 +653,91 @@ if (!import.meta.env.VITE_GITHUB_TOKEN || import.meta.env.VITE_GITHUB_TOKEN === 
 
   sdk.get = async function(collection: string): Promise<any[]> {
     try {
-      const data = localStorage.getItem(`demo_${collection}`);
-      return data ? JSON.parse(data) : [];
-    } catch {
+      const key = `demo_${collection}`;
+      const data = localStorage.getItem(key);
+      const result = data ? JSON.parse(data) : [];
+      console.log(`Demo GET ${collection}:`, result.length, 'items');
+      return result;
+    } catch (error) {
+      console.warn(`Demo GET failed for ${collection}:`, error);
       return [];
     }
   };
 
   sdk.insert = async function(collection: string, item: any): Promise<any> {
-    const arr = await this.get(collection);
-    const id = (Math.max(0, ...arr.map((x: any) => +x.id || 0)) + 1).toString();
-    const newItem = { uid: crypto.randomUUID(), id, ...item };
-    arr.push(newItem);
-    localStorage.setItem(`demo_${collection}`, JSON.stringify(arr));
-    return newItem;
+    try {
+      const arr = await this.get(collection);
+      const id = (Math.max(0, ...arr.map((x: any) => parseInt(x.id) || 0)) + 1).toString();
+      const newItem = { 
+        uid: crypto.randomUUID(), 
+        id, 
+        createdAt: new Date().toISOString(),
+        ...item 
+      };
+      arr.push(newItem);
+      localStorage.setItem(`demo_${collection}`, JSON.stringify(arr));
+      console.log(`Demo INSERT ${collection}:`, newItem);
+      return newItem;
+    } catch (error) {
+      console.error(`Demo INSERT failed for ${collection}:`, error);
+      throw error;
+    }
   };
 
   sdk.update = async function(collection: string, key: string, updates: any): Promise<any> {
-    const arr = await this.get(collection);
-    const i = arr.findIndex((x: any) => x.id === key || x.uid === key);
-    if (i < 0) throw new Error("Not found");
-    const upd = { ...arr[i], ...updates };
-    arr[i] = upd;
-    localStorage.setItem(`demo_${collection}`, JSON.stringify(arr));
-    return upd;
+    try {
+      const arr = await this.get(collection);
+      const i = arr.findIndex((x: any) => x.id === key || x.uid === key);
+      if (i < 0) throw new Error(`Item not found: ${key}`);
+      const updatedItem = { 
+        ...arr[i], 
+        ...updates, 
+        updatedAt: new Date().toISOString() 
+      };
+      arr[i] = updatedItem;
+      localStorage.setItem(`demo_${collection}`, JSON.stringify(arr));
+      console.log(`Demo UPDATE ${collection}:`, updatedItem);
+      return updatedItem;
+    } catch (error) {
+      console.error(`Demo UPDATE failed for ${collection}:`, error);
+      throw error;
+    }
   };
 
   sdk.delete = async function(collection: string, key: string): Promise<void> {
-    const arr = await this.get(collection);
-    const filtered = arr.filter((x: any) => x.id !== key && x.uid !== key);
-    localStorage.setItem(`demo_${collection}`, JSON.stringify(filtered));
+    try {
+      const arr = await this.get(collection);
+      const filtered = arr.filter((x: any) => x.id !== key && x.uid !== key);
+      localStorage.setItem(`demo_${collection}`, JSON.stringify(filtered));
+      console.log(`Demo DELETE ${collection}:`, key);
+    } catch (error) {
+      console.error(`Demo DELETE failed for ${collection}:`, error);
+      throw error;
+    }
   };
 
-  // Override email sending for demo
+  // Override email sending for demo mode
   sdk.sendEmail = async function(to: string, subject: string, html: string): Promise<boolean> {
     console.log('Demo Email Sent:', { to, subject, html });
+    // Simulate email sending delay
+    await new Promise(resolve => setTimeout(resolve, 1000));
     return true;
+  };
+
+  // Override OTP sending for demo mode
+  sdk.sendOTP = async function(email: string, reason: string = "verify"): Promise<string> {
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    console.log(`Demo OTP for ${email}: ${otp}`);
+    // Store OTP in memory for demo
+    this.otpMemory = this.otpMemory || {};
+    this.otpMemory[email] = { otp, created: Date.now(), reason };
+    return otp;
   };
 }
 
-// Initialize SDK on import (with error handling)
+// Initialize SDK with proper error handling
 sdk.init().catch(error => {
-  console.warn('SDK initialization failed, running in demo mode:', error);
+  console.warn('SDK initialization failed, demo mode active:', error);
 });
 
 export default sdk;
