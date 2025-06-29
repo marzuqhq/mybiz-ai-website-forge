@@ -34,31 +34,48 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const { toast } = useToast();
 
   useEffect(() => {
-    const token = localStorage.getItem('auth_token');
-    if (token) {
-      const sessionData = sdk.getSession(token);
-      if (sessionData) {
-        setSession(sessionData);
-        setUser(sessionData.user);
-      } else {
+    const initializeAuth = async () => {
+      try {
+        const token = localStorage.getItem('auth_token');
+        if (token) {
+          console.log('Found existing auth token, validating session');
+          const sessionData = sdk.getSession(token);
+          if (sessionData) {
+            setSession(sessionData);
+            setUser(sessionData.user);
+            console.log('Session restored successfully');
+          } else {
+            console.log('Invalid session token, removing');
+            localStorage.removeItem('auth_token');
+          }
+        }
+      } catch (error) {
+        console.error('Auth initialization error:', error);
         localStorage.removeItem('auth_token');
+      } finally {
+        setIsLoading(false);
       }
-    }
-    setIsLoading(false);
+    };
+
+    initializeAuth();
   }, []);
 
   const login = async (email: string, password: string) => {
     try {
       setIsLoading(true);
+      console.log('Attempting login for:', email);
+      
       const result = await sdk.login(email, password);
       
       if (typeof result === 'string') {
         // Direct login success
+        console.log('Login successful, storing token');
         localStorage.setItem('auth_token', result);
         const sessionData = sdk.getSession(result);
         if (sessionData) {
           setSession(sessionData);
           setUser(sessionData.user);
+          console.log('User session established');
           toast({
             title: "Welcome back!",
             description: "You have successfully logged in.",
@@ -66,6 +83,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       } else if (result.otpRequired) {
         // OTP required
+        console.log('OTP required for login');
         setPendingLogin(email);
         toast({
           title: "Verification required",
@@ -73,9 +91,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
       }
     } catch (error: any) {
+      console.error('Login error:', error);
       toast({
         title: "Login failed",
-        description: error.message || "Invalid credentials",
+        description: error.message || "Invalid credentials. Please check your email and password.",
         variant: "destructive",
       });
       throw error;
@@ -87,16 +106,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const register = async (email: string, password: string, profile: any = {}) => {
     try {
       setIsLoading(true);
-      await sdk.register(email, password, profile);
-      toast({
-        title: "Registration successful",
-        description: "Please check your email for verification.",
-      });
-      setPendingLogin(email);
+      console.log('Attempting registration for:', email);
+      
+      const result = await sdk.register(email, password, profile);
+      console.log('Registration successful');
+      
+      // Since email verification is disabled, log in directly
+      const loginResult = await sdk.login(email, password);
+      
+      if (typeof loginResult === 'string') {
+        localStorage.setItem('auth_token', loginResult);
+        const sessionData = sdk.getSession(loginResult);
+        if (sessionData) {
+          setSession(sessionData);
+          setUser(sessionData.user);
+          toast({
+            title: "Welcome to MyBiz AI!",
+            description: "Your account has been created successfully.",
+          });
+        }
+      }
     } catch (error: any) {
+      console.error('Registration error:', error);
       toast({
         title: "Registration failed",
-        description: error.message || "Failed to create account",
+        description: error.message || "Failed to create account. Please try again.",
         variant: "destructive",
       });
       throw error;
@@ -142,6 +176,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(null);
       setSession(null);
       setPendingLogin(null);
+      console.log('Logout successful');
       toast({
         title: "Logged out",
         description: "You have been successfully logged out.",

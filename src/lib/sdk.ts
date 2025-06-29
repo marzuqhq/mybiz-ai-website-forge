@@ -7,7 +7,7 @@ import UniversalSDK, {
 } from './UniversalSDK';
 import { enhancedSDKConfig } from './enhanced-sdk-config';
 
-// Enhanced SDK Configuration with all required schemas
+// Enhanced SDK Configuration with essential schemas only
 const sdkConfig: UniversalSDKConfig = {
   owner: import.meta.env.VITE_GITHUB_OWNER || 'ridwanullahh',
   repo: import.meta.env.VITE_GITHUB_REPO || 'mybizaidb',
@@ -28,7 +28,6 @@ const sdkConfig: UniversalSDKConfig = {
     otpTriggers: [],
   },
   schemas: {
-    ...enhancedSDKConfig.schemas,
     users: {
       required: ['email'],
       types: {
@@ -99,6 +98,38 @@ const sdkConfig: UniversalSDKConfig = {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         subdomainPath: '',
+      },
+    },
+    // Essential collections only
+    blog_posts: {
+      required: ['websiteId', 'title', 'content'],
+      types: {
+        websiteId: 'string',
+        title: 'string',
+        content: 'string',
+        excerpt: 'string',
+        slug: 'string',
+        status: 'string',
+        publishedAt: 'date',
+        createdAt: 'date',
+        updatedAt: 'date',
+        author: 'string',
+        tags: 'array',
+        featuredImage: 'string',
+        seoTitle: 'string',
+        seoDescription: 'string',
+      },
+      defaults: {
+        status: 'draft',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        tags: [],
+        excerpt: '',
+        slug: '',
+        author: '',
+        featuredImage: '',
+        seoTitle: '',
+        seoDescription: '',
       },
     },
     customers: {
@@ -216,18 +247,19 @@ const sdkConfig: UniversalSDKConfig = {
   templates: {},
 };
 
-// Enhanced SDK with improved error handling and retry logic
+// Simplified SDK with better error handling
 class EnhancedSDK extends UniversalSDK {
   private initialized = false;
   private initializingCollections = new Set<string>();
   private retryCount = new Map<string, number>();
-  private maxRetries = 5;
+  private maxRetries = 3;
+  private initializationPromise: Promise<void> | null = null;
 
   async ensureCollection(collection: string): Promise<void> {
     if (this.initializingCollections.has(collection)) {
       // Wait for ongoing initialization
       while (this.initializingCollections.has(collection)) {
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise(resolve => setTimeout(resolve, 50));
       }
       return;
     }
@@ -237,10 +269,11 @@ class EnhancedSDK extends UniversalSDK {
     try {
       // Try to get the collection first
       await this.get(collection);
+      console.log(`Collection ${collection} already exists`);
     } catch (error: any) {
       // If 404, create the collection file
       if (error.message.includes('404') || error.message.includes('Not Found')) {
-        console.log(`Initializing collection: ${collection}`);
+        console.log(`Creating collection: ${collection}`);
         try {
           const owner = (this as any).owner;
           const repo = (this as any).repo;
@@ -249,9 +282,6 @@ class EnhancedSDK extends UniversalSDK {
           const branch = (this as any).branch;
           
           const url = `https://api.github.com/repos/${owner}/${repo}/contents/${basePath}/${collection}.json`;
-          
-          // Add small random delay to avoid race conditions
-          await new Promise(resolve => setTimeout(resolve, Math.random() * 1000));
           
           const response = await fetch(url, {
             method: 'PUT',
@@ -275,16 +305,17 @@ class EnhancedSDK extends UniversalSDK {
             throw new Error(`Failed to create ${collection}: ${response.status} ${errorText}`);
           }
           
-          console.log(`Successfully initialized ${collection}`);
+          console.log(`Successfully created ${collection}`);
         } catch (createError: any) {
           if (createError.message.includes('already exists')) {
             console.log(`Collection ${collection} already exists`);
             return;
           }
-          console.warn(`Failed to initialize ${collection}:`, createError);
+          console.warn(`Failed to create ${collection}:`, createError);
           throw createError;
         }
       } else {
+        console.warn(`Error accessing ${collection}:`, error);
         throw error;
       }
     } finally {
@@ -304,8 +335,8 @@ class EnhancedSDK extends UniversalSDK {
         console.log(`Retrying ${key} due to conflict (attempt ${currentRetries + 1}/${this.maxRetries})`);
         this.retryCount.set(key, currentRetries + 1);
         
-        // Exponential backoff with jitter
-        const delay = Math.min(1000 * Math.pow(2, currentRetries), 5000) + Math.random() * 1000;
+        // Short delay with jitter
+        const delay = 500 + Math.random() * 500;
         await new Promise(resolve => setTimeout(resolve, delay));
         
         return this.withRetry(operation, key);
@@ -317,12 +348,16 @@ class EnhancedSDK extends UniversalSDK {
   }
 
   async get<T = any>(collection: string): Promise<T[]> {
-    await this.ensureCollection(collection);
+    if (!this.initialized) {
+      await this.initializeEssentialCollections();
+    }
     return super.get<T>(collection);
   }
 
   async insert<T = any>(collection: string, item: Partial<T>): Promise<T & { id: string; uid: string }> {
-    await this.ensureCollection(collection);
+    if (!this.initialized) {
+      await this.initializeEssentialCollections();
+    }
     
     return this.withRetry(async () => {
       return super.insert<T>(collection, item);
@@ -330,42 +365,113 @@ class EnhancedSDK extends UniversalSDK {
   }
 
   async update<T = any>(collection: string, key: string, updates: Partial<T>): Promise<T> {
-    await this.ensureCollection(collection);
+    if (!this.initialized) {
+      await this.initializeEssentialCollections();
+    }
     
     return this.withRetry(async () => {
       return super.update<T>(collection, key, updates);
     }, `update-${collection}-${key}`);
   }
 
-  async initializeAllCollections(): Promise<void> {
-    if (this.initialized) return;
+  async initializeEssentialCollections(): Promise<void> {
+    if (this.initialized || this.initializationPromise) {
+      return this.initializationPromise || Promise.resolve();
+    }
 
+    this.initializationPromise = this.performInitialization();
+    return this.initializationPromise;
+  }
+
+  private async performInitialization(): Promise<void> {
     const schemas = (this as any).schemas;
-    const collections = Object.keys(schemas || {});
-    console.log('Initializing collections:', collections);
+    // Only initialize essential collections first
+    const essentialCollections = ['users', 'websites', 'blog_posts', 'customers'];
+    
+    console.log('Initializing essential collections:', essentialCollections);
 
-    // Initialize collections sequentially to avoid conflicts
-    for (const collection of collections) {
+    // Initialize essential collections first
+    for (const collection of essentialCollections) {
       try {
         await this.ensureCollection(collection);
-        // Small delay between collections
-        await new Promise(resolve => setTimeout(resolve, 200));
+        // Small delay between collections to avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, 100));
       } catch (error) {
-        console.warn(`Failed to initialize ${collection}:`, error);
+        console.warn(`Failed to initialize essential collection ${collection}:`, error);
       }
     }
 
+    // Then initialize remaining collections in background
+    const remainingCollections = Object.keys(schemas || {}).filter(
+      c => !essentialCollections.includes(c)
+    );
+    
+    if (remainingCollections.length > 0) {
+      console.log('Initializing remaining collections in background:', remainingCollections);
+      
+      // Initialize remaining collections without blocking
+      Promise.all(
+        remainingCollections.map(async (collection) => {
+          try {
+            await this.ensureCollection(collection);
+          } catch (error) {
+            console.warn(`Failed to initialize ${collection}:`, error);
+          }
+        })
+      ).then(() => {
+        console.log('All collections initialized');
+      }).catch(error => {
+        console.warn('Some collections failed to initialize:', error);
+      });
+    }
+
     this.initialized = true;
-    console.log('All collections initialized successfully');
+    console.log('Essential collections initialized successfully');
+  }
+
+  // Override login to ensure initialization
+  async login(email: string, password: string): Promise<string | { otpRequired: boolean }> {
+    console.log('Starting login process for:', email);
+    
+    try {
+      // Ensure essential collections are initialized before login
+      await this.initializeEssentialCollections();
+      console.log('Collections initialized, proceeding with login');
+      
+      const result = await super.login(email, password);
+      console.log('Login successful');
+      return result;
+    } catch (error) {
+      console.error('Login failed:', error);
+      throw error;
+    }
+  }
+
+  // Override register to ensure initialization
+  async register(email: string, password: string, profile: any = {}): Promise<any> {
+    console.log('Starting registration process for:', email);
+    
+    try {
+      // Ensure essential collections are initialized before registration
+      await this.initializeEssentialCollections();
+      console.log('Collections initialized, proceeding with registration');
+      
+      const result = await super.register(email, password, profile);
+      console.log('Registration successful');
+      return result;
+    } catch (error) {
+      console.error('Registration failed:', error);
+      throw error;
+    }
   }
 }
 
 // Create the enhanced SDK instance
 const sdk = new EnhancedSDK(sdkConfig);
 
-// Initialize all collections on startup
-sdk.initializeAllCollections().catch(error => {
-  console.warn('Collection initialization failed:', error);
+// Test connection on startup
+sdk.initializeEssentialCollections().catch(error => {
+  console.error('SDK initialization failed:', error);
 });
 
 export { sdk };

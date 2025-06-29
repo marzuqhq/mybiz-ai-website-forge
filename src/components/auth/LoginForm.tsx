@@ -20,16 +20,28 @@ const LoginForm: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!email || !password) {
+      return;
+    }
+    
     try {
+      console.log('Form submitted, attempting login');
       await login(email, password);
-      setShowOTP(true);
+      // If login is successful without OTP, navigation will happen via auth context
+      if (!showOTP) {
+        navigate('/');
+      }
     } catch (error) {
-      console.error('Login error:', error);
+      console.error('Login form error:', error);
     }
   };
 
   const handleOTPSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!otp) {
+      return;
+    }
+    
     try {
       await verifyOTP(email, otp);
       navigate('/');
@@ -62,7 +74,7 @@ const LoginForm: React.FC = () => {
                   required
                 />
               </div>
-              <Button type="submit" className="w-full" disabled={isLoading}>
+              <Button type="submit" className="w-full" disabled={isLoading || !otp}>
                 {isLoading ? 'Verifying...' : 'Verify Code'}
               </Button>
               <Button 
@@ -70,6 +82,7 @@ const LoginForm: React.FC = () => {
                 variant="ghost" 
                 className="w-full"
                 onClick={() => setShowOTP(false)}
+                disabled={isLoading}
               >
                 Back to Login
               </Button>
@@ -106,6 +119,7 @@ const LoginForm: React.FC = () => {
                   onChange={(e) => setEmail(e.target.value)}
                   className="pl-10"
                   required
+                  disabled={isLoading}
                 />
               </div>
             </div>
@@ -122,6 +136,7 @@ const LoginForm: React.FC = () => {
                   onChange={(e) => setPassword(e.target.value)}
                   className="pl-10 pr-10"
                   required
+                  disabled={isLoading}
                 />
                 <Button
                   type="button"
@@ -129,6 +144,7 @@ const LoginForm: React.FC = () => {
                   size="sm"
                   className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
                   onClick={() => setShowPassword(!showPassword)}
+                  disabled={isLoading}
                 >
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </Button>
@@ -141,7 +157,11 @@ const LoginForm: React.FC = () => {
               </Link>
             </div>
 
-            <Button type="submit" className="w-full" disabled={isLoading}>
+            <Button 
+              type="submit" 
+              className="w-full" 
+              disabled={isLoading || !email || !password}
+            >
               {isLoading ? 'Signing in...' : 'Sign In'}
             </Button>
           </form>
