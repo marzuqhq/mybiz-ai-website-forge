@@ -145,18 +145,24 @@ class EnhancedSDK extends UniversalSDK {
       if (error.message.includes('404') || error.message.includes('Not Found')) {
         console.log(`Initializing collection: ${collection}`);
         try {
-          // Use the public GitHub API instead of private methods
-          const url = `https://api.github.com/repos/${this.getConfig('owner')}/${this.getConfig('repo')}/contents/${this.getConfig('basePath')}/${collection}.json`;
+          // Use the public GitHub API directly with properties from config
+          const owner = (this as any).owner;
+          const repo = (this as any).repo;
+          const token = (this as any).token;
+          const basePath = (this as any).basePath;
+          const branch = (this as any).branch;
+          
+          const url = `https://api.github.com/repos/${owner}/${repo}/contents/${basePath}/${collection}.json`;
           const response = await fetch(url, {
             method: 'PUT',
             headers: {
-              'Authorization': `token ${this.getConfig('token')}`,
+              'Authorization': `token ${token}`,
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
               message: `Initialize ${collection} collection`,
               content: btoa(JSON.stringify([], null, 2)),
-              branch: this.getConfig('branch'),
+              branch: branch,
             }),
           });
           
@@ -224,7 +230,8 @@ class EnhancedSDK extends UniversalSDK {
   async initializeAllCollections(): Promise<void> {
     if (this.initialized) return;
 
-    const collections = Object.keys(this.getConfig('schemas') || {});
+    const schemas = (this as any).schemas;
+    const collections = Object.keys(schemas || {});
     console.log('Initializing collections:', collections);
 
     // Initialize collections in batches to avoid rate limits
