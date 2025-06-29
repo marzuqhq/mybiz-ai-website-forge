@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -450,21 +449,20 @@ Could you provide more details about what specific outcome you're looking for? I
                           <div className="prose prose-sm max-w-none">
                             <ReactMarkdown
                               components={{
-                                code({ node, children, className, ...props }) {
+                                code({ children, className }) {
                                   const match = /language-(\w+)/.exec(className || '');
                                   const isCodeBlock = match;
                                   
                                   return isCodeBlock ? (
                                     <SyntaxHighlighter
-                                      style={tomorrow as any}
+                                      style={tomorrow}
                                       language={match[1]}
                                       PreTag="div"
-                                      {...props}
                                     >
                                       {String(children).replace(/\n$/, '')}
                                     </SyntaxHighlighter>
                                   ) : (
-                                    <code className={className} {...props}>
+                                    <code className={className}>
                                       {children}
                                     </code>
                                   );
