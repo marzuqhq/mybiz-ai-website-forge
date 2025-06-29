@@ -42,7 +42,7 @@ const CRMManager: React.FC<CRMManagerProps> = ({ websiteId, aiController }) => {
     email: '',
     phone: '',
     company: '',
-    status: 'prospect' as const,
+    status: 'prospect' as 'active' | 'inactive' | 'prospect',
     tags: '',
     notes: ''
   });
@@ -236,7 +236,7 @@ const CRMManager: React.FC<CRMManagerProps> = ({ websiteId, aiController }) => {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Status</label>
-                  <Select value={formData.status} onValueChange={(value: any) => setFormData(prev => ({ ...prev, status: value }))}>
+                  <Select value={formData.status} onValueChange={(value: 'active' | 'inactive' | 'prospect') => setFormData(prev => ({ ...prev, status: value }))}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>

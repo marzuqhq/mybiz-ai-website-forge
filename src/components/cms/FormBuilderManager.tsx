@@ -26,8 +26,8 @@ interface Form {
   fields: FormField[];
   settings: {
     redirectUrl?: string;
-    emailNotification?: boolean;
-    notificationEmail?: string;
+    emailNotification: boolean;
+    notificationEmail: string;
     submitMessage: string;
   };
   submissions: any[];
@@ -127,7 +127,12 @@ const FormBuilderManager: React.FC<FormBuilderManagerProps> = ({ websiteId }) =>
         websiteId,
         name: formData.name,
         fields: formData.fields,
-        settings: formData.settings,
+        settings: {
+          submitMessage: formData.settings.submitMessage,
+          emailNotification: formData.settings.emailNotification,
+          notificationEmail: formData.settings.notificationEmail || '',
+          redirectUrl: ''
+        },
         submissions: [],
         status: 'active' as const
       };
@@ -164,7 +169,11 @@ const FormBuilderManager: React.FC<FormBuilderManagerProps> = ({ websiteId }) =>
     setFormData({
       name: form.name,
       fields: form.fields,
-      settings: form.settings
+      settings: {
+        submitMessage: form.settings.submitMessage,
+        emailNotification: form.settings.emailNotification,
+        notificationEmail: form.settings.notificationEmail
+      }
     });
     setIsDialogOpen(true);
   };

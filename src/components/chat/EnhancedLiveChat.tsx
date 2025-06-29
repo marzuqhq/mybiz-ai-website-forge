@@ -450,14 +450,15 @@ Could you provide more details about what specific outcome you're looking for? I
                           <div className="prose prose-sm max-w-none">
                             <ReactMarkdown
                               components={{
-                                code({node, inline, className, children, ...props}) {
+                                code({ node, children, className, ...props }) {
                                   const match = /language-(\w+)/.exec(className || '');
-                                  return !inline && match ? (
+                                  const isCodeBlock = match;
+                                  
+                                  return isCodeBlock ? (
                                     <SyntaxHighlighter
-                                      style={tomorrow}
+                                      style={tomorrow as any}
                                       language={match[1]}
                                       PreTag="div"
-                                      className="text-sm"
                                       {...props}
                                     >
                                       {String(children).replace(/\n$/, '')}
@@ -467,7 +468,16 @@ Could you provide more details about what specific outcome you're looking for? I
                                       {children}
                                     </code>
                                   );
-                                }
+                                },
+                                h1: ({ children }) => <h1 className="text-lg font-bold mb-2">{children}</h1>,
+                                h2: ({ children }) => <h2 className="text-base font-semibold mb-2">{children}</h2>,
+                                h3: ({ children }) => <h3 className="text-sm font-medium mb-1">{children}</h3>,
+                                p: ({ children }) => <p className="mb-2 text-sm">{children}</p>,
+                                ul: ({ children }) => <ul className="list-disc pl-4 mb-2 text-sm">{children}</ul>,
+                                ol: ({ children }) => <ol className="list-decimal pl-4 mb-2 text-sm">{children}</ol>,
+                                li: ({ children }) => <li className="mb-1">{children}</li>,
+                                strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+                                em: ({ children }) => <em className="italic">{children}</em>,
                               }}
                             >
                               {message.content}
@@ -476,18 +486,15 @@ Could you provide more details about what specific outcome you're looking for? I
                         ) : (
                           <p className="text-sm">{message.content}</p>
                         )}
-                        <p className="text-xs mt-1 opacity-70">
-                          {message.timestamp.toLocaleTimeString([], { 
-                            hour: '2-digit', 
-                            minute: '2-digit' 
-                          })}
+                        <p className="text-xs opacity-70 mt-1">
+                          {message.timestamp.toLocaleTimeString()}
                         </p>
                       </div>
                     </div>
                   </div>
                 </div>
               ))}
-              
+
               {isTyping && (
                 <div className="flex justify-start">
                   <div className="bg-white border shadow-sm rounded-lg p-3 max-w-[80%]">
@@ -495,14 +502,13 @@ Could you provide more details about what specific outcome you're looking for? I
                       <Bot className="w-4 h-4 text-blue-500" />
                       <div className="flex space-x-1">
                         <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
                         <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }}></div>
                       </div>
                     </div>
                   </div>
                 </div>
               )}
-              
               <div ref={messagesEndRef} />
             </div>
 
@@ -521,7 +527,7 @@ Could you provide more details about what specific outcome you're looking for? I
                 <Button
                   onClick={handleSendMessage}
                   disabled={!inputValue.trim() || isLoading}
-                  className="bg-gradient-to-r from-blue-600 to-purple-600"
+                  className="bg-blue-600 hover:bg-blue-700"
                 >
                   <Send className="w-4 h-4" />
                 </Button>
