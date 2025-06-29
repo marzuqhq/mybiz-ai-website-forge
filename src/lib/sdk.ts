@@ -24,8 +24,8 @@ const sdkConfig: UniversalSDKConfig = {
     from: import.meta.env.VITE_SMTP_FROM || 'noreply@mybiz.ai',
   },
   auth: {
-    requireEmailVerification: true,
-    otpTriggers: ['register', 'login'],
+    requireEmailVerification: false,
+    otpTriggers: [],
   },
   schemas: {
     ...enhancedSDKConfig.schemas,
@@ -44,7 +44,7 @@ const sdkConfig: UniversalSDKConfig = {
         subdomain: 'string',
       },
       defaults: {
-        verified: false,
+        verified: true,
         roles: ['user'],
         permissions: ['read'],
         plan: 'free',
@@ -101,37 +101,134 @@ const sdkConfig: UniversalSDKConfig = {
         subdomainPath: '',
       },
     },
+    customers: {
+      required: ['websiteId', 'email'],
+      types: {
+        websiteId: 'string',
+        email: 'string',
+        name: 'string',
+        phone: 'string',
+        company: 'string',
+        status: 'string',
+        tags: 'array',
+        customFields: 'object',
+        createdAt: 'date',
+        lastContact: 'date',
+      },
+      defaults: {
+        status: 'active',
+        tags: [],
+        customFields: {},
+        createdAt: new Date().toISOString(),
+        lastContact: new Date().toISOString(),
+      },
+    },
+    orders: {
+      required: ['websiteId', 'customerId', 'total'],
+      types: {
+        websiteId: 'string',
+        customerId: 'string',
+        orderNumber: 'string',
+        items: 'array',
+        total: 'number',
+        status: 'string',
+        paymentStatus: 'string',
+        shippingAddress: 'object',
+        billingAddress: 'object',
+        createdAt: 'date',
+        updatedAt: 'date',
+      },
+      defaults: {
+        status: 'pending',
+        paymentStatus: 'pending',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    },
+    invoices: {
+      required: ['websiteId', 'customerId', 'total'],
+      types: {
+        websiteId: 'string',
+        customerId: 'string',
+        invoiceNumber: 'string',
+        items: 'array',
+        total: 'number',
+        tax: 'number',
+        status: 'string',
+        dueDate: 'date',
+        paidDate: 'date',
+        createdAt: 'date',
+      },
+      defaults: {
+        status: 'draft',
+        tax: 0,
+        createdAt: new Date().toISOString(),
+      },
+    },
+    forms: {
+      required: ['websiteId', 'name'],
+      types: {
+        websiteId: 'string',
+        name: 'string',
+        fields: 'array',
+        settings: 'object',
+        submissions: 'array',
+        status: 'string',
+        createdAt: 'date',
+      },
+      defaults: {
+        fields: [],
+        settings: {},
+        submissions: [],
+        status: 'active',
+        createdAt: new Date().toISOString(),
+      },
+    },
+    email_campaigns: {
+      required: ['websiteId', 'name', 'subject'],
+      types: {
+        websiteId: 'string',
+        name: 'string',
+        subject: 'string',
+        content: 'string',
+        recipients: 'array',
+        status: 'string',
+        stats: 'object',
+        scheduledAt: 'date',
+        sentAt: 'date',
+        createdAt: 'date',
+      },
+      defaults: {
+        recipients: [],
+        status: 'draft',
+        stats: {
+          sent: 0,
+          delivered: 0,
+          opened: 0,
+          clicked: 0,
+          bounced: 0,
+          unsubscribed: 0
+        },
+        createdAt: new Date().toISOString(),
+      },
+    },
   },
-  templates: {
-    otp: `
-      <div style="font-family: 'Inter', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #FAFAFA; padding: 40px;">
-        <div style="background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
-          <div style="text-align: center; margin-bottom: 30px;">
-            <h2 style="color: #6366F1; font-size: 24px; font-weight: 600; margin: 0;">mybiz AI</h2>
-            <p style="color: #64748B; margin: 8px 0 0 0;">Your AI-powered website builder</p>
-          </div>
-          <h3 style="color: #0F172A; font-size: 20px; font-weight: 600; margin-bottom: 16px;">Your Verification Code</h3>
-          <p style="color: #475569; font-size: 16px; line-height: 1.5; margin-bottom: 24px;">Your one-time password is:</p>
-          <div style="background: linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%); padding: 20px; text-align: center; font-size: 28px; font-weight: bold; margin: 24px 0; border-radius: 8px; color: white; letter-spacing: 2px;">
-            {{otp}}
-          </div>
-          <p style="color: #64748B; font-size: 14px; text-align: center; margin: 0;">This code will expire in 10 minutes.</p>
-        </div>
-        <p style="color: #94A3B8; font-size: 12px; text-align: center; margin-top: 20px;">
-          © 2024 mybiz AI. All rights reserved.
-        </p>
-      </div>
-    `,
-  },
+  templates: {},
 };
 
-// Enhanced SDK with automatic file initialization
+// Enhanced SDK with improved error handling and retry logic
 class EnhancedSDK extends UniversalSDK {
   private initialized = false;
   private initializingCollections = new Set<string>();
+  private retryCount = new Map<string, number>();
+  private maxRetries = 5;
 
   async ensureCollection(collection: string): Promise<void> {
     if (this.initializingCollections.has(collection)) {
+      // Wait for ongoing initialization
+      while (this.initializingCollections.has(collection)) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
       return;
     }
 
@@ -145,7 +242,6 @@ class EnhancedSDK extends UniversalSDK {
       if (error.message.includes('404') || error.message.includes('Not Found')) {
         console.log(`Initializing collection: ${collection}`);
         try {
-          // Use the public GitHub API directly with properties from config
           const owner = (this as any).owner;
           const repo = (this as any).repo;
           const token = (this as any).token;
@@ -153,6 +249,10 @@ class EnhancedSDK extends UniversalSDK {
           const branch = (this as any).branch;
           
           const url = `https://api.github.com/repos/${owner}/${repo}/contents/${basePath}/${collection}.json`;
+          
+          // Add small random delay to avoid race conditions
+          await new Promise(resolve => setTimeout(resolve, Math.random() * 1000));
+          
           const response = await fetch(url, {
             method: 'PUT',
             headers: {
@@ -167,16 +267,52 @@ class EnhancedSDK extends UniversalSDK {
           });
           
           if (!response.ok) {
-            throw new Error(`Failed to create ${collection}: ${response.statusText}`);
+            const errorText = await response.text();
+            if (response.status === 422 && errorText.includes('already exists')) {
+              console.log(`Collection ${collection} already exists`);
+              return;
+            }
+            throw new Error(`Failed to create ${collection}: ${response.status} ${errorText}`);
           }
           
           console.log(`Successfully initialized ${collection}`);
         } catch (createError: any) {
+          if (createError.message.includes('already exists')) {
+            console.log(`Collection ${collection} already exists`);
+            return;
+          }
           console.warn(`Failed to initialize ${collection}:`, createError);
+          throw createError;
         }
+      } else {
+        throw error;
       }
     } finally {
       this.initializingCollections.delete(collection);
+    }
+  }
+
+  private async withRetry<T>(operation: () => Promise<T>, key: string): Promise<T> {
+    const currentRetries = this.retryCount.get(key) || 0;
+    
+    try {
+      const result = await operation();
+      this.retryCount.delete(key); // Reset on success
+      return result;
+    } catch (error: any) {
+      if ((error.message.includes('409') || error.message.includes('conflict')) && currentRetries < this.maxRetries) {
+        console.log(`Retrying ${key} due to conflict (attempt ${currentRetries + 1}/${this.maxRetries})`);
+        this.retryCount.set(key, currentRetries + 1);
+        
+        // Exponential backoff with jitter
+        const delay = Math.min(1000 * Math.pow(2, currentRetries), 5000) + Math.random() * 1000;
+        await new Promise(resolve => setTimeout(resolve, delay));
+        
+        return this.withRetry(operation, key);
+      }
+      
+      this.retryCount.delete(key);
+      throw error;
     }
   }
 
@@ -188,43 +324,17 @@ class EnhancedSDK extends UniversalSDK {
   async insert<T = any>(collection: string, item: Partial<T>): Promise<T & { id: string; uid: string }> {
     await this.ensureCollection(collection);
     
-    // Retry logic for 409 conflicts
-    let retries = 3;
-    while (retries > 0) {
-      try {
-        return await super.insert<T>(collection, item);
-      } catch (error: any) {
-        if (error.message.includes('409') && retries > 1) {
-          console.log(`Retrying insert for ${collection} due to SHA conflict...`);
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          retries--;
-          continue;
-        }
-        throw error;
-      }
-    }
-    throw new Error(`Failed to insert after retries in ${collection}`);
+    return this.withRetry(async () => {
+      return super.insert<T>(collection, item);
+    }, `insert-${collection}-${Date.now()}`);
   }
 
   async update<T = any>(collection: string, key: string, updates: Partial<T>): Promise<T> {
     await this.ensureCollection(collection);
     
-    // Retry logic for 409 conflicts
-    let retries = 3;
-    while (retries > 0) {
-      try {
-        return await super.update<T>(collection, key, updates);
-      } catch (error: any) {
-        if (error.message.includes('409') && retries > 1) {
-          console.log(`Retrying update for ${collection} due to SHA conflict...`);
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          retries--;
-          continue;
-        }
-        throw error;
-      }
-    }
-    throw new Error(`Failed to update after retries in ${collection}`);
+    return this.withRetry(async () => {
+      return super.update<T>(collection, key, updates);
+    }, `update-${collection}-${key}`);
   }
 
   async initializeAllCollections(): Promise<void> {
@@ -234,14 +344,14 @@ class EnhancedSDK extends UniversalSDK {
     const collections = Object.keys(schemas || {});
     console.log('Initializing collections:', collections);
 
-    // Initialize collections in batches to avoid rate limits
-    const batchSize = 5;
-    for (let i = 0; i < collections.length; i += batchSize) {
-      const batch = collections.slice(i, i + batchSize);
-      await Promise.all(batch.map(collection => this.ensureCollection(collection)));
-      // Small delay between batches
-      if (i + batchSize < collections.length) {
-        await new Promise(resolve => setTimeout(resolve, 500));
+    // Initialize collections sequentially to avoid conflicts
+    for (const collection of collections) {
+      try {
+        await this.ensureCollection(collection);
+        // Small delay between collections
+        await new Promise(resolve => setTimeout(resolve, 200));
+      } catch (error) {
+        console.warn(`Failed to initialize ${collection}:`, error);
       }
     }
 
