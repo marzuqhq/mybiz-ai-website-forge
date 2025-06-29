@@ -1,3 +1,4 @@
+
 import UniversalSDK, { 
   UniversalSDKConfig, 
   User, 
@@ -124,9 +125,6 @@ const sdkConfig: UniversalSDKConfig = {
   },
 };
 
-// Initialize SDK with enhanced error handling and file creation
-export const sdk = new UniversalSDK(sdkConfig);
-
 // Enhanced SDK with automatic file initialization
 class EnhancedSDK extends UniversalSDK {
   private initialized = false;
@@ -147,11 +145,25 @@ class EnhancedSDK extends UniversalSDK {
       if (error.message.includes('404') || error.message.includes('Not Found')) {
         console.log(`Initializing collection: ${collection}`);
         try {
-          await this.request(`${this.basePath}/${collection}.json`, "PUT", {
-            message: `Initialize ${collection} collection`,
-            content: btoa(JSON.stringify([], null, 2)),
-            branch: this.branch,
+          // Use the public GitHub API instead of private methods
+          const url = `https://api.github.com/repos/${this.getConfig('owner')}/${this.getConfig('repo')}/contents/${this.getConfig('basePath')}/${collection}.json`;
+          const response = await fetch(url, {
+            method: 'PUT',
+            headers: {
+              'Authorization': `token ${this.getConfig('token')}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              message: `Initialize ${collection} collection`,
+              content: btoa(JSON.stringify([], null, 2)),
+              branch: this.getConfig('branch'),
+            }),
           });
+          
+          if (!response.ok) {
+            throw new Error(`Failed to create ${collection}: ${response.statusText}`);
+          }
+          
           console.log(`Successfully initialized ${collection}`);
         } catch (createError: any) {
           console.warn(`Failed to initialize ${collection}:`, createError);
@@ -212,7 +224,7 @@ class EnhancedSDK extends UniversalSDK {
   async initializeAllCollections(): Promise<void> {
     if (this.initialized) return;
 
-    const collections = Object.keys(this.schemas || {});
+    const collections = Object.keys(this.getConfig('schemas') || {});
     console.log('Initializing collections:', collections);
 
     // Initialize collections in batches to avoid rate limits
@@ -231,14 +243,14 @@ class EnhancedSDK extends UniversalSDK {
   }
 }
 
-// Replace the SDK instance with enhanced version
-const enhancedSdk = new EnhancedSDK(sdkConfig);
+// Create the enhanced SDK instance
+const sdk = new EnhancedSDK(sdkConfig);
 
 // Initialize all collections on startup
-enhancedSdk.initializeAllCollections().catch(error => {
+sdk.initializeAllCollections().catch(error => {
   console.warn('Collection initialization failed:', error);
 });
 
-export default enhancedSdk;
-export { enhancedSdk as sdk };
+export { sdk };
+export default sdk;
 export type { User, Session, CloudinaryUploadResult };

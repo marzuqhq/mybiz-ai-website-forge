@@ -1,6 +1,61 @@
 
 import { sdk } from './sdk';
-import { generateWithAI } from './ai';
+
+// Simple AI generation function for demo purposes
+// In production, this would connect to your preferred AI service
+async function generateWithAI(prompt: string): Promise<string> {
+  // This is a placeholder implementation
+  // Replace with your actual AI service integration (OpenAI, Anthropic, etc.)
+  console.log('AI Prompt:', prompt);
+  
+  // For demo purposes, return structured responses based on the prompt
+  if (prompt.includes('blog post')) {
+    return JSON.stringify({
+      title: "AI-Generated Blog Post Title",
+      content: "This is AI-generated content for your blog post. Replace this with actual AI integration.",
+      excerpt: "A brief excerpt of the blog post.",
+      seoDescription: "SEO-optimized description for the blog post.",
+      tags: ["ai", "blog", "content"],
+      categories: ["Technology"],
+      readTime: 5
+    });
+  }
+  
+  if (prompt.includes('product')) {
+    return JSON.stringify({
+      title: "AI-Generated Product Title",
+      shortDescription: "Brief product description.",
+      description: "Detailed AI-generated product description with benefits and features.",
+      seoDescription: "SEO-optimized product description.",
+      tags: ["product", "ai-generated"]
+    });
+  }
+  
+  if (prompt.includes('FAQ')) {
+    return JSON.stringify([
+      {
+        question: "What is this service?",
+        answer: "This is an AI-powered business platform.",
+        category: "general"
+      },
+      {
+        question: "How does it work?",
+        answer: "Our platform uses AI to help you manage your business.",
+        category: "technical"
+      }
+    ]);
+  }
+  
+  if (prompt.includes('email campaign')) {
+    return JSON.stringify({
+      subject: "AI-Generated Email Subject",
+      content: "AI-generated email content with compelling copy.",
+      alternativeSubjects: ["Alternative Subject 1", "Alternative Subject 2"]
+    });
+  }
+  
+  return "AI-generated response for: " + prompt.substring(0, 100) + "...";
+}
 
 interface AICMSConfig {
   websiteId: string;
