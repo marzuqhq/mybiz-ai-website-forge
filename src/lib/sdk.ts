@@ -27,6 +27,7 @@ const sdkConfig: UniversalSDKConfig = {
     otpTriggers: ['register', 'login'],
   },
   schemas: {
+    ...enhancedSDKConfig.schemas,
     users: {
       required: ['email'],
       types: {
@@ -99,445 +100,6 @@ const sdkConfig: UniversalSDKConfig = {
         subdomainPath: '',
       },
     },
-    pages: {
-      required: ['websiteId', 'title', 'slug'],
-      types: {
-        websiteId: 'string',
-        title: 'string',
-        slug: 'string',
-        type: 'string',
-        blocks: 'array',
-        seoMeta: 'object',
-        status: 'string',
-        order: 'number',
-        parentId: 'string',
-        template: 'string',
-        customCss: 'string',
-        customJs: 'string',
-      },
-      defaults: {
-        type: 'page',
-        blocks: [],
-        seoMeta: {
-          title: '',
-          description: '',
-          keywords: [],
-          canonical: '',
-          noindex: false,
-        },
-        status: 'published',
-        order: 0,
-        template: 'default',
-        customCss: '',
-        customJs: '',
-      },
-    },
-    blocks: {
-      required: ['pageId', 'type', 'content'],
-      types: {
-        pageId: 'string',
-        type: 'string',
-        content: 'object',
-        order: 'number',
-        aiGenerated: 'boolean',
-        editable: 'boolean',
-        version: 'number',
-        settings: 'object',
-        animations: 'object',
-      },
-      defaults: {
-        order: 0,
-        aiGenerated: true,
-        editable: true,
-        version: 1,
-        settings: {},
-        animations: {},
-      },
-    },
-    posts: {
-      required: ['websiteId', 'title'],
-      types: {
-        websiteId: 'string',
-        title: 'string',
-        slug: 'string',
-        markdownBody: 'string',
-        excerpt: 'string',
-        tags: 'array',
-        categories: 'array',
-        publishedAt: 'date',
-        summary: 'string',
-        featured: 'boolean',
-        featuredImage: 'string',
-        author: 'object',
-        seoMeta: 'object',
-        status: 'string',
-        readTime: 'number',
-      },
-      defaults: {
-        tags: [],
-        categories: [],
-        publishedAt: new Date().toISOString(),
-        featured: false,
-        status: 'published',
-        readTime: 5,
-        author: {},
-        seoMeta: {},
-        excerpt: '',
-      },
-    },
-    products: {
-      required: ['websiteId', 'title'],
-      types: {
-        websiteId: 'string',
-        title: 'string',
-        slug: 'string',
-        imageUrl: 'string',
-        gallery: 'array',
-        description: 'string',
-        shortDescription: 'string',
-        price: 'number',
-        comparePrice: 'number',
-        currency: 'string',
-        sku: 'string',
-        stock: 'number',
-        externalUrl: 'string',
-        category: 'string',
-        tags: 'array',
-        featured: 'boolean',
-        status: 'string',
-        seoMeta: 'object',
-        inventory: 'object',
-        variants: 'array',
-        shipping: 'object',
-      },
-      defaults: {
-        price: 0,
-        currency: 'USD',
-        stock: 0,
-        gallery: [],
-        tags: [],
-        featured: false,
-        status: 'active',
-        seoMeta: {},
-        inventory: {
-          trackQuantity: true,
-          allowBackorder: false,
-          lowStockThreshold: 5,
-        },
-        variants: [],
-        shipping: {
-          weight: 0,
-          dimensions: { length: 0, width: 0, height: 0 },
-          shippingClass: 'standard',
-        },
-      },
-    },
-    faqs: {
-      required: ['websiteId', 'question', 'answer'],
-      types: {
-        websiteId: 'string',
-        question: 'string',
-        answer: 'string',
-        aiGenerated: 'boolean',
-        category: 'string',
-        order: 'number',
-        helpful: 'number',
-        notHelpful: 'number',
-        status: 'string',
-      },
-      defaults: {
-        aiGenerated: true,
-        category: 'general',
-        order: 0,
-        helpful: 0,
-        notHelpful: 0,
-        status: 'published',
-      },
-    },
-    submissions: {
-      required: ['websiteId', 'formId'],
-      types: {
-        websiteId: 'string',
-        formId: 'string',
-        dataJson: 'object',
-        timestamp: 'date',
-        ip: 'string',
-        userAgent: 'string',
-        referrer: 'string',
-        status: 'string',
-        spam: 'boolean',
-        read: 'boolean',
-        tags: 'array',
-      },
-      defaults: {
-        timestamp: new Date().toISOString(),
-        status: 'new',
-        spam: false,
-        read: false,
-        tags: [],
-      },
-    },
-    testimonials: {
-      required: ['websiteId', 'name', 'content'],
-      types: {
-        websiteId: 'string',
-        name: 'string',
-        content: 'string',
-        role: 'string',
-        company: 'string',
-        avatar: 'string',
-        rating: 'number',
-        featured: 'boolean',
-        status: 'string',
-        source: 'string',
-        date: 'date',
-      },
-      defaults: {
-        rating: 5,
-        featured: false,
-        status: 'published',
-        source: 'manual',
-        date: new Date().toISOString(),
-      },
-    },
-    appointments: {
-      required: ['websiteId', 'name', 'email', 'service'],
-      types: {
-        websiteId: 'string',
-        name: 'string',
-        email: 'string',
-        phone: 'string',
-        service: 'string',
-        date: 'date',
-        time: 'string',
-        duration: 'number',
-        status: 'string',
-        notes: 'string',
-        confirmationSent: 'boolean',
-        reminderSent: 'boolean',
-        meetingLink: 'string',
-      },
-      defaults: {
-        duration: 60,
-        status: 'pending',
-        confirmationSent: false,
-        reminderSent: false,
-      },
-    },
-    newsletters: {
-      required: ['websiteId', 'email'],
-      types: {
-        websiteId: 'string',
-        email: 'string',
-        name: 'string',
-        source: 'string',
-        tags: 'array',
-        subscribed: 'boolean',
-        confirmed: 'boolean',
-        subscribedAt: 'date',
-        unsubscribedAt: 'date',
-      },
-      defaults: {
-        subscribed: true,
-        confirmed: false,
-        tags: [],
-        subscribedAt: new Date().toISOString(),
-        source: 'website',
-      },
-    },
-    domains: {
-      required: ['websiteId', 'domain'],
-      types: {
-        websiteId: 'string',
-        domain: 'string',
-        type: 'string',
-        status: 'string',
-        ssl: 'boolean',
-        verified: 'boolean',
-        dnsRecords: 'array',
-        provider: 'string',
-        registrar: 'string',
-        expiresAt: 'date',
-        autoRenew: 'boolean',
-      },
-      defaults: {
-        type: 'custom',
-        status: 'pending',
-        ssl: true,
-        verified: false,
-        dnsRecords: [],
-        autoRenew: true,
-      },
-    },
-    analytics: {
-      required: ['websiteId', 'date'],
-      types: {
-        websiteId: 'string',
-        date: 'date',
-        pageViews: 'number',
-        uniqueVisitors: 'number',
-        sessions: 'number',
-        bounceRate: 'number',
-        avgSessionDuration: 'number',
-        topPages: 'array',
-        topReferrers: 'array',
-        countries: 'array',
-        devices: 'array',
-        browsers: 'array',
-      },
-      defaults: {
-        pageViews: 0,
-        uniqueVisitors: 0,
-        sessions: 0,
-        bounceRate: 0,
-        avgSessionDuration: 0,
-        topPages: [],
-        topReferrers: [],
-        countries: [],
-        devices: [],
-        browsers: [],
-      },
-    },
-    crm_contacts: {
-      required: ['websiteId', 'email'],
-      types: {
-        websiteId: 'string',
-        firstName: 'string',
-        lastName: 'string',
-        email: 'string',
-        phone: 'string',
-        company: 'string',
-        position: 'string',
-        status: 'string',
-        source: 'string',
-        tags: 'array',
-        notes: 'array',
-        lastActivity: 'date',
-        assignedTo: 'string',
-        customFields: 'object',
-        socialProfiles: 'object',
-        dealValue: 'number',
-        stage: 'string',
-      },
-      defaults: {
-        status: 'active',
-        source: 'website',
-        tags: [],
-        notes: [],
-        lastActivity: new Date().toISOString(),
-        customFields: {},
-        socialProfiles: {},
-        dealValue: 0,
-        stage: 'lead',
-      },
-    },
-    email_campaigns: {
-      required: ['websiteId', 'name', 'subject'],
-      types: {
-        websiteId: 'string',
-        name: 'string',
-        subject: 'string',
-        content: 'string',
-        template: 'string',
-        status: 'string',
-        scheduledAt: 'date',
-        sentAt: 'date',
-        recipients: 'array',
-        stats: 'object',
-        aiOptimized: 'boolean',
-        segmentRules: 'array',
-      },
-      defaults: {
-        status: 'draft',
-        recipients: [],
-        stats: {
-          sent: 0,
-          delivered: 0,
-          opened: 0,
-          clicked: 0,
-          bounced: 0,
-          unsubscribed: 0,
-        },
-        aiOptimized: false,
-        segmentRules: [],
-      },
-    },
-    invoices: {
-      required: ['websiteId', 'invoiceNumber', 'clientId'],
-      types: {
-        websiteId: 'string',
-        invoiceNumber: 'string',
-        clientId: 'string',
-        clientInfo: 'object',
-        items: 'array',
-        subtotal: 'number',
-        taxRate: 'number',
-        taxAmount: 'number',
-        total: 'number',
-        currency: 'string',
-        status: 'string',
-        issueDate: 'date',
-        dueDate: 'date',
-        paidDate: 'date',
-        notes: 'string',
-        terms: 'string',
-        paymentMethod: 'string',
-        recurringSettings: 'object',
-      },
-      defaults: {
-        subtotal: 0,
-        taxRate: 0,
-        taxAmount: 0,
-        total: 0,
-        currency: 'USD',
-        status: 'draft',
-        issueDate: new Date().toISOString(),
-        items: [],
-        clientInfo: {},
-        recurringSettings: {},
-      },
-    },
-    form_builder: {
-      required: ['websiteId', 'name', 'fields'],
-      types: {
-        websiteId: 'string',
-        name: 'string',
-        description: 'string',
-        fields: 'array',
-        settings: 'object',
-        styling: 'object',
-        notifications: 'object',
-        integrations: 'array',
-        submissions: 'number',
-        conversionRate: 'number',
-        status: 'string',
-        aiOptimized: 'boolean',
-      },
-      defaults: {
-        fields: [],
-        settings: {
-          requireAuth: false,
-          allowMultiple: true,
-          saveProgress: false,
-          enableSpamProtection: true,
-        },
-        styling: {
-          theme: 'default',
-          customCss: '',
-        },
-        notifications: {
-          email: true,
-          webhook: '',
-          autoResponse: true,
-        },
-        integrations: [],
-        submissions: 0,
-        conversionRate: 0,
-        status: 'active',
-        aiOptimized: false,
-      },
-    },
-    ...enhancedSDKConfig.schemas,
   },
   templates: {
     otp: `
@@ -559,186 +121,124 @@ const sdkConfig: UniversalSDKConfig = {
         </p>
       </div>
     `,
-    welcome: `
-      <div style="font-family: 'Inter', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #FAFAFA; padding: 40px;">
-        <div style="background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
-          <div style="text-align: center; margin-bottom: 30px;">
-            <h2 style="color: #6366F1; font-size: 24px; font-weight: 600; margin: 0;">Welcome to mybiz AI!</h2>
-            <p style="color: #64748B; margin: 8px 0 0 0;">Your Website. Described, Not Designed.</p>
-          </div>
-          <p style="color: #475569; font-size: 16px; line-height: 1.6; margin-bottom: 24px;">
-            Thank you for joining our AI-powered website builder platform. We're excited to help you create a beautiful, 
-            functional website by simply describing your business.
-          </p>
-          <div style="background: linear-gradient(135deg, #F8FAFC 0%, #E2E8F0 100%); padding: 24px; border-radius: 8px; margin: 24px 0;">
-            <h4 style="color: #1E293B; font-size: 16px; font-weight: 600; margin: 0 0 12px 0;">Get started in 3 simple steps:</h4>
-            <ol style="color: #475569; font-size: 14px; line-height: 1.5; margin: 0; padding-left: 20px;">
-              <li>Describe your business and target audience</li>
-              <li>Let our AI generate your complete website</li>
-              <li>Refine and publish with simple prompts</li>
-            </ol>
-          </div>
-          <div style="text-align: center; margin-top: 30px;">
-            <a href="#" style="background: linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%); color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600; display: inline-block;">
-              Create Your First Website
-            </a>
-          </div>
-        </div>
-      </div>
-    `,
-    appointmentConfirmation: `
-      <div style="font-family: 'Inter', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #FAFAFA; padding: 40px;">
-        <div style="background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
-          <h3 style="color: #10B981; font-size: 20px; font-weight: 600; margin-bottom: 16px;">Appointment Confirmed!</h3>
-          <p style="color: #475569; font-size: 16px; line-height: 1.5; margin-bottom: 24px;">
-            Your appointment has been successfully scheduled for <strong>{{date}}</strong> at <strong>{{time}}</strong>.
-          </p>
-          <div style="background: #F0FDF4; border: 1px solid #BBF7D0; padding: 20px; border-radius: 8px; margin: 20px 0;">
-            <p style="color: #166534; margin: 0;"><strong>Service:</strong> {{service}}</p>
-            <p style="color: #166534; margin: 8px 0 0 0;"><strong>Duration:</strong> {{duration}} minutes</p>
-          </div>
-          <p style="color: #64748B; font-size: 14px;">
-            You'll receive a reminder 24 hours before your appointment.
-          </p>
-        </div>
-      </div>
-    `,
   },
 };
 
-// Initialize SDK
+// Initialize SDK with enhanced error handling and file creation
 export const sdk = new UniversalSDK(sdkConfig);
 
-// Force demo mode when GitHub is not properly configured
-const isGitHubConfigured = import.meta.env.VITE_GITHUB_TOKEN && 
-                          import.meta.env.VITE_GITHUB_TOKEN !== 'demo-token' &&
-                          import.meta.env.VITE_GITHUB_OWNER &&
-                          import.meta.env.VITE_GITHUB_REPO;
+// Enhanced SDK with automatic file initialization
+class EnhancedSDK extends UniversalSDK {
+  private initialized = false;
+  private initializingCollections = new Set<string>();
 
-if (!isGitHubConfigured) {
-  console.warn('GitHub not configured properly, using localStorage for demo mode');
-  
-  // Get all collection names from schemas
-  const getAllCollections = () => {
-    const baseCollections = ['blog_posts', 'contacts'];
-    const schemaCollections = Object.keys(sdkConfig.schemas || {});
-    return [...new Set([...baseCollections, ...schemaCollections])];
-  };
-  
-  // Initialize demo data with proper error handling
-  const initializeDemoData = () => {
-    const collections = getAllCollections();
+  async ensureCollection(collection: string): Promise<void> {
+    if (this.initializingCollections.has(collection)) {
+      return;
+    }
+
+    this.initializingCollections.add(collection);
     
-    collections.forEach(collection => {
-      try {
-        const key = `demo_${collection}`;
-        if (!localStorage.getItem(key)) {
-          localStorage.setItem(key, JSON.stringify([]));
-          console.log(`Initialized demo collection: ${collection}`);
+    try {
+      // Try to get the collection first
+      await this.get(collection);
+    } catch (error: any) {
+      // If 404, create the collection file
+      if (error.message.includes('404') || error.message.includes('Not Found')) {
+        console.log(`Initializing collection: ${collection}`);
+        try {
+          await this.request(`${this.basePath}/${collection}.json`, "PUT", {
+            message: `Initialize ${collection} collection`,
+            content: btoa(JSON.stringify([], null, 2)),
+            branch: this.branch,
+          });
+          console.log(`Successfully initialized ${collection}`);
+        } catch (createError: any) {
+          console.warn(`Failed to initialize ${collection}:`, createError);
         }
-      } catch (error) {
-        console.warn(`Failed to initialize collection ${collection}:`, error);
       }
-    });
-  };
-  
-  // Initialize demo data
-  initializeDemoData();
-  
-  // Override SDK methods for demo mode
-  const originalGet = sdk.get.bind(sdk);
-  const originalInsert = sdk.insert.bind(sdk);
-  const originalUpdate = sdk.update.bind(sdk);
-  const originalDelete = sdk.delete.bind(sdk);
-
-  sdk.get = async function(collection: string): Promise<any[]> {
-    try {
-      const key = `demo_${collection}`;
-      const data = localStorage.getItem(key);
-      const result = data ? JSON.parse(data) : [];
-      console.log(`Demo GET ${collection}:`, result.length, 'items');
-      return result;
-    } catch (error) {
-      console.warn(`Demo GET failed for ${collection}:`, error);
-      return [];
+    } finally {
+      this.initializingCollections.delete(collection);
     }
-  };
+  }
 
-  sdk.insert = async function(collection: string, item: any): Promise<any> {
-    try {
-      const arr = await this.get(collection);
-      const id = (Math.max(0, ...arr.map((x: any) => parseInt(x.id) || 0)) + 1).toString();
-      const newItem = { 
-        uid: crypto.randomUUID(), 
-        id, 
-        createdAt: new Date().toISOString(),
-        ...item 
-      };
-      arr.push(newItem);
-      localStorage.setItem(`demo_${collection}`, JSON.stringify(arr));
-      console.log(`Demo INSERT ${collection}:`, newItem);
-      return newItem;
-    } catch (error) {
-      console.error(`Demo INSERT failed for ${collection}:`, error);
-      throw error;
+  async get<T = any>(collection: string): Promise<T[]> {
+    await this.ensureCollection(collection);
+    return super.get<T>(collection);
+  }
+
+  async insert<T = any>(collection: string, item: Partial<T>): Promise<T & { id: string; uid: string }> {
+    await this.ensureCollection(collection);
+    
+    // Retry logic for 409 conflicts
+    let retries = 3;
+    while (retries > 0) {
+      try {
+        return await super.insert<T>(collection, item);
+      } catch (error: any) {
+        if (error.message.includes('409') && retries > 1) {
+          console.log(`Retrying insert for ${collection} due to SHA conflict...`);
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          retries--;
+          continue;
+        }
+        throw error;
+      }
     }
-  };
+    throw new Error(`Failed to insert after retries in ${collection}`);
+  }
 
-  sdk.update = async function(collection: string, key: string, updates: any): Promise<any> {
-    try {
-      const arr = await this.get(collection);
-      const i = arr.findIndex((x: any) => x.id === key || x.uid === key);
-      if (i < 0) throw new Error(`Item not found: ${key}`);
-      const updatedItem = { 
-        ...arr[i], 
-        ...updates, 
-        updatedAt: new Date().toISOString() 
-      };
-      arr[i] = updatedItem;
-      localStorage.setItem(`demo_${collection}`, JSON.stringify(arr));
-      console.log(`Demo UPDATE ${collection}:`, updatedItem);
-      return updatedItem;
-    } catch (error) {
-      console.error(`Demo UPDATE failed for ${collection}:`, error);
-      throw error;
+  async update<T = any>(collection: string, key: string, updates: Partial<T>): Promise<T> {
+    await this.ensureCollection(collection);
+    
+    // Retry logic for 409 conflicts
+    let retries = 3;
+    while (retries > 0) {
+      try {
+        return await super.update<T>(collection, key, updates);
+      } catch (error: any) {
+        if (error.message.includes('409') && retries > 1) {
+          console.log(`Retrying update for ${collection} due to SHA conflict...`);
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          retries--;
+          continue;
+        }
+        throw error;
+      }
     }
-  };
+    throw new Error(`Failed to update after retries in ${collection}`);
+  }
 
-  sdk.delete = async function(collection: string, key: string): Promise<void> {
-    try {
-      const arr = await this.get(collection);
-      const filtered = arr.filter((x: any) => x.id !== key && x.uid !== key);
-      localStorage.setItem(`demo_${collection}`, JSON.stringify(filtered));
-      console.log(`Demo DELETE ${collection}:`, key);
-    } catch (error) {
-      console.error(`Demo DELETE failed for ${collection}:`, error);
-      throw error;
+  async initializeAllCollections(): Promise<void> {
+    if (this.initialized) return;
+
+    const collections = Object.keys(this.schemas || {});
+    console.log('Initializing collections:', collections);
+
+    // Initialize collections in batches to avoid rate limits
+    const batchSize = 5;
+    for (let i = 0; i < collections.length; i += batchSize) {
+      const batch = collections.slice(i, i + batchSize);
+      await Promise.all(batch.map(collection => this.ensureCollection(collection)));
+      // Small delay between batches
+      if (i + batchSize < collections.length) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
     }
-  };
 
-  // Override email sending for demo mode
-  sdk.sendEmail = async function(to: string, subject: string, html: string): Promise<boolean> {
-    console.log('Demo Email Sent:', { to, subject, html });
-    // Simulate email sending delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    return true;
-  };
-
-  // Override OTP sending for demo mode
-  sdk.sendOTP = async function(email: string, reason: string = "verify"): Promise<string> {
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    console.log(`Demo OTP for ${email}: ${otp}`);
-    // Store OTP in memory for demo
-    this.otpMemory = this.otpMemory || {};
-    this.otpMemory[email] = { otp, created: Date.now(), reason };
-    return otp;
-  };
+    this.initialized = true;
+    console.log('All collections initialized successfully');
+  }
 }
 
-// Initialize SDK with proper error handling
-sdk.init().catch(error => {
-  console.warn('SDK initialization failed, demo mode active:', error);
+// Replace the SDK instance with enhanced version
+const enhancedSdk = new EnhancedSDK(sdkConfig);
+
+// Initialize all collections on startup
+enhancedSdk.initializeAllCollections().catch(error => {
+  console.warn('Collection initialization failed:', error);
 });
 
-export default sdk;
+export default enhancedSdk;
+export { enhancedSdk as sdk };
 export type { User, Session, CloudinaryUploadResult };
