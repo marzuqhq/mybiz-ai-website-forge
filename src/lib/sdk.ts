@@ -8,8 +8,8 @@ import { enhancedSDKConfig } from './enhanced-sdk-config';
 
 // Enhanced SDK Configuration with all required schemas
 const sdkConfig: UniversalSDKConfig = {
-  owner: import.meta.env.VITE_GITHUB_OWNER || 'demo-user',
-  repo: import.meta.env.VITE_GITHUB_REPO || 'website-data',
+  owner: import.meta.env.VITE_GITHUB_OWNER || 'ridwanullahh',
+  repo: import.meta.env.VITE_GITHUB_REPO || 'mybizaidb',
   token: import.meta.env.VITE_GITHUB_TOKEN || 'demo-token',
   branch: import.meta.env.VITE_GITHUB_BRANCH || 'main',
   basePath: 'db',
@@ -19,12 +19,12 @@ const sdkConfig: UniversalSDKConfig = {
     uploadPreset: import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET,
   },
   smtp: {
-    endpoint: import.meta.env.VITE_SMTP_ENDPOINT,
-    from: import.meta.env.VITE_SMTP_FROM,
+    endpoint: '/api/send-email',
+    from: import.meta.env.VITE_SMTP_FROM || 'noreply@mybiz.ai',
   },
   auth: {
-    requireEmailVerification: false,
-    otpTriggers: [],
+    requireEmailVerification: true,
+    otpTriggers: ['register', 'login'],
   },
   schemas: {
     users: {
@@ -39,6 +39,7 @@ const sdkConfig: UniversalSDKConfig = {
         authMethod: 'string',
         createdAt: 'date',
         profile: 'object',
+        subdomain: 'string',
       },
       defaults: {
         verified: false,
@@ -48,6 +49,7 @@ const sdkConfig: UniversalSDKConfig = {
         authMethod: 'email',
         createdAt: new Date().toISOString(),
         profile: {},
+        subdomain: '',
       },
     },
     websites: {
@@ -65,6 +67,7 @@ const sdkConfig: UniversalSDKConfig = {
         updatedAt: 'date',
         publishedAt: 'date',
         analytics: 'object',
+        subdomainPath: 'string',
       },
       defaults: {
         status: 'draft',
@@ -93,6 +96,7 @@ const sdkConfig: UniversalSDKConfig = {
         },
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
+        subdomainPath: '',
       },
     },
     pages: {
@@ -202,6 +206,9 @@ const sdkConfig: UniversalSDKConfig = {
         featured: 'boolean',
         status: 'string',
         seoMeta: 'object',
+        inventory: 'object',
+        variants: 'array',
+        shipping: 'object',
       },
       defaults: {
         price: 0,
@@ -212,6 +219,17 @@ const sdkConfig: UniversalSDKConfig = {
         featured: false,
         status: 'active',
         seoMeta: {},
+        inventory: {
+          trackQuantity: true,
+          allowBackorder: false,
+          lowStockThreshold: 5,
+        },
+        variants: [],
+        shipping: {
+          weight: 0,
+          dimensions: { length: 0, width: 0, height: 0 },
+          shippingClass: 'standard',
+        },
       },
     },
     faqs: {
@@ -380,6 +398,145 @@ const sdkConfig: UniversalSDKConfig = {
         browsers: [],
       },
     },
+    crm_contacts: {
+      required: ['websiteId', 'email'],
+      types: {
+        websiteId: 'string',
+        firstName: 'string',
+        lastName: 'string',
+        email: 'string',
+        phone: 'string',
+        company: 'string',
+        position: 'string',
+        status: 'string',
+        source: 'string',
+        tags: 'array',
+        notes: 'array',
+        lastActivity: 'date',
+        assignedTo: 'string',
+        customFields: 'object',
+        socialProfiles: 'object',
+        dealValue: 'number',
+        stage: 'string',
+      },
+      defaults: {
+        status: 'active',
+        source: 'website',
+        tags: [],
+        notes: [],
+        lastActivity: new Date().toISOString(),
+        customFields: {},
+        socialProfiles: {},
+        dealValue: 0,
+        stage: 'lead',
+      },
+    },
+    email_campaigns: {
+      required: ['websiteId', 'name', 'subject'],
+      types: {
+        websiteId: 'string',
+        name: 'string',
+        subject: 'string',
+        content: 'string',
+        template: 'string',
+        status: 'string',
+        scheduledAt: 'date',
+        sentAt: 'date',
+        recipients: 'array',
+        stats: 'object',
+        aiOptimized: 'boolean',
+        segmentRules: 'array',
+      },
+      defaults: {
+        status: 'draft',
+        recipients: [],
+        stats: {
+          sent: 0,
+          delivered: 0,
+          opened: 0,
+          clicked: 0,
+          bounced: 0,
+          unsubscribed: 0,
+        },
+        aiOptimized: false,
+        segmentRules: [],
+      },
+    },
+    invoices: {
+      required: ['websiteId', 'invoiceNumber', 'clientId'],
+      types: {
+        websiteId: 'string',
+        invoiceNumber: 'string',
+        clientId: 'string',
+        clientInfo: 'object',
+        items: 'array',
+        subtotal: 'number',
+        taxRate: 'number',
+        taxAmount: 'number',
+        total: 'number',
+        currency: 'string',
+        status: 'string',
+        issueDate: 'date',
+        dueDate: 'date',
+        paidDate: 'date',
+        notes: 'string',
+        terms: 'string',
+        paymentMethod: 'string',
+        recurringSettings: 'object',
+      },
+      defaults: {
+        subtotal: 0,
+        taxRate: 0,
+        taxAmount: 0,
+        total: 0,
+        currency: 'USD',
+        status: 'draft',
+        issueDate: new Date().toISOString(),
+        items: [],
+        clientInfo: {},
+        recurringSettings: {},
+      },
+    },
+    form_builder: {
+      required: ['websiteId', 'name', 'fields'],
+      types: {
+        websiteId: 'string',
+        name: 'string',
+        description: 'string',
+        fields: 'array',
+        settings: 'object',
+        styling: 'object',
+        notifications: 'object',
+        integrations: 'array',
+        submissions: 'number',
+        conversionRate: 'number',
+        status: 'string',
+        aiOptimized: 'boolean',
+      },
+      defaults: {
+        fields: [],
+        settings: {
+          requireAuth: false,
+          allowMultiple: true,
+          saveProgress: false,
+          enableSpamProtection: true,
+        },
+        styling: {
+          theme: 'default',
+          customCss: '',
+        },
+        notifications: {
+          email: true,
+          webhook: '',
+          autoResponse: true,
+        },
+        integrations: [],
+        submissions: 0,
+        conversionRate: 0,
+        status: 'active',
+        aiOptimized: false,
+      },
+    },
     ...enhancedSDKConfig.schemas,
   },
   templates: {
@@ -452,9 +609,22 @@ const sdkConfig: UniversalSDKConfig = {
 // Initialize SDK
 export const sdk = new UniversalSDK(sdkConfig);
 
-// Demo mode localStorage fallback
+// Enhanced demo mode with proper initialization
 if (!import.meta.env.VITE_GITHUB_TOKEN || import.meta.env.VITE_GITHUB_TOKEN === 'demo-token') {
   console.warn('GitHub not configured, using localStorage for demo');
+  
+  // Initialize demo data
+  const initializeDemoData = () => {
+    const collections = ['users', 'websites', 'pages', 'blocks', 'posts', 'products', 'faqs', 'submissions', 'testimonials', 'appointments', 'newsletters', 'domains', 'analytics', 'blog_posts', 'contacts', 'crm_contacts', 'email_campaigns', 'invoices', 'form_builder'];
+    
+    collections.forEach(collection => {
+      if (!localStorage.getItem(`demo_${collection}`)) {
+        localStorage.setItem(`demo_${collection}`, JSON.stringify([]));
+      }
+    });
+  };
+  
+  initializeDemoData();
   
   const originalGet = sdk.get.bind(sdk);
   const originalInsert = sdk.insert.bind(sdk);
@@ -493,6 +663,12 @@ if (!import.meta.env.VITE_GITHUB_TOKEN || import.meta.env.VITE_GITHUB_TOKEN === 
     const arr = await this.get(collection);
     const filtered = arr.filter((x: any) => x.id !== key && x.uid !== key);
     localStorage.setItem(`demo_${collection}`, JSON.stringify(filtered));
+  };
+
+  // Override email sending for demo
+  sdk.sendEmail = async function(to: string, subject: string, html: string): Promise<boolean> {
+    console.log('Demo Email Sent:', { to, subject, html });
+    return true;
   };
 }
 
