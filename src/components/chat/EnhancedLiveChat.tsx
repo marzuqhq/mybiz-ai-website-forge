@@ -395,7 +395,7 @@ How can I assist you today?`,
                           <div className="prose prose-sm max-w-none">
                             <ReactMarkdown
                               components={{
-                                code: ({ children, className, ...props }) => {
+                                code: ({ children, className }) => {
                                   const match = /language-(\w+)/.exec(className || '');
                                   const language = match ? match[1] : '';
                                   
@@ -406,7 +406,6 @@ How can I assist you today?`,
                                           style={vscDarkPlus as any}
                                           language={language}
                                           PreTag="div"
-                                          {...props}
                                         >
                                           {String(children).replace(/\n$/, '')}
                                         </SyntaxHighlighter>
@@ -416,8 +415,7 @@ How can I assist you today?`,
                                   
                                   return (
                                     <code 
-                                      className="bg-gray-100 text-gray-800 px-1 py-0.5 rounded text-sm" 
-                                      {...props}
+                                      className="bg-gray-100 text-gray-800 px-1 py-0.5 rounded text-sm"
                                     >
                                       {children}
                                     </code>
