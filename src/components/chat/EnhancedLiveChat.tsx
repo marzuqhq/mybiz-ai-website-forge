@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { MessageCircle, X, Send, User, Bot, Minimize2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -401,20 +400,16 @@ How can I assist you today?`,
                                   const language = match ? match[1] : '';
                                   
                                   if (language) {
-                                    const customStyles: { [key: string]: React.CSSProperties } = {
-                                      'pre[class*="language-"]': {
-                                        margin: 0,
-                                        borderRadius: '6px',
-                                        fontSize: '0.875rem'
-                                      }
-                                    };
-
                                     return (
                                       <SyntaxHighlighter
                                         style={vscDarkPlus}
                                         language={language}
                                         PreTag="div"
-                                        customStyle={customStyles}
+                                        customStyle={{
+                                          margin: 0,
+                                          borderRadius: '6px',
+                                          fontSize: '0.875rem'
+                                        }}
                                         {...props}
                                       >
                                         {String(children).replace(/\n$/, '')}
