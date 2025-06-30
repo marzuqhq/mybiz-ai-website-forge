@@ -401,16 +401,20 @@ How can I assist you today?`,
                                   const language = match ? match[1] : '';
                                   
                                   if (language) {
+                                    const customStyles: { [key: string]: React.CSSProperties } = {
+                                      'pre[class*="language-"]': {
+                                        margin: 0,
+                                        borderRadius: '6px',
+                                        fontSize: '0.875rem'
+                                      }
+                                    };
+
                                     return (
                                       <SyntaxHighlighter
                                         style={vscDarkPlus}
                                         language={language}
                                         PreTag="div"
-                                        customStyle={{
-                                          margin: 0,
-                                          borderRadius: '6px',
-                                          fontSize: '0.875rem'
-                                        }}
+                                        customStyle={customStyles}
                                         {...props}
                                       >
                                         {String(children).replace(/\n$/, '')}
