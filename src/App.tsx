@@ -6,7 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import Header from "@/components/layout/Header";
-import LiveChat from "@/components/chat/LiveChat";
+import EnhancedLiveChat from "@/components/chat/EnhancedLiveChat";
 import Index from "./pages/Index";
 import LoginForm from "./components/auth/LoginForm";
 import RegisterForm from "./components/auth/RegisterForm";
@@ -86,12 +86,12 @@ const App = () => (
               <Route path="/gdpr" element={<GDPR />} />
               <Route path="/security" element={<Security />} />
               
-              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+              {/* Catch-all route MUST be last */}
               <Route path="*" element={<NotFound />} />
             </Routes>
             
-            {/* AI-Powered Live Chat */}
-            <LiveChat />
+            {/* AI-Powered Live Chat with Enhanced Features */}
+            <EnhancedLiveChat />
           </div>
         </BrowserRouter>
       </AuthProvider>

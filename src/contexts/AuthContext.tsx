@@ -7,6 +7,7 @@ interface AuthContextType {
   user: User | null;
   session: Session | null;
   isLoading: boolean;
+  isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, profile?: any) => Promise<void>;
   logout: () => Promise<void>;
@@ -30,29 +31,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [pendingLogin, setPendingLogin] = useState<string | null>(null);
+  const [sessionToken, setSessionToken] = useState<string | null>(null);
   const { toast } = useToast();
+
+  const isAuthenticated = Boolean(user && session && sessionToken);
 
   useEffect(() => {
     const initializeAuth = async () => {
       try {
-        const token = localStorage.getItem('auth_token');
-        if (token) {
-          console.log('Found existing auth token, validating session');
-          const sessionData = sdk.getSession(token);
-          if (sessionData) {
-            setSession(sessionData);
-            setUser(sessionData.user);
-            console.log('Session restored successfully');
-          } else {
-            console.log('Invalid session token, removing');
-            localStorage.removeItem('auth_token');
-          }
-        }
+        console.log('🔐 Initializing authentication...');
+        // SDK will handle its own initialization
+        setIsLoading(false);
+        console.log('✅ Auth initialization complete');
       } catch (error) {
-        console.error('Auth initialization error:', error);
-        localStorage.removeItem('auth_token');
-      } finally {
+        console.error('❌ Auth initialization failed:', error);
         setIsLoading(false);
       }
     };
@@ -63,35 +55,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = async (email: string, password: string) => {
     try {
       setIsLoading(true);
-      console.log('Attempting login for:', email);
+      console.log('🔐 Logging in user:', email);
       
       const result = await sdk.login(email, password);
       
       if (typeof result === 'string') {
-        // Direct login success
-        console.log('Login successful, storing token');
-        localStorage.setItem('auth_token', result);
-        const sessionData = sdk.getSession(result);
+        // Direct login success - result is the token
+        const token = result;
+        const sessionData = sdk.getSession(token);
+        
         if (sessionData) {
           setSession(sessionData);
           setUser(sessionData.user);
-          console.log('User session established');
+          setSessionToken(token);
+          
+          console.log('✅ Login successful, user authenticated');
           toast({
             title: "Welcome back!",
-            description: "You have successfully logged in.",
+            description: `Signed in as ${sessionData.user.email}`,
           });
+        } else {
+          throw new Error('Failed to create session');
         }
       } else if (result.otpRequired) {
-        // OTP required
-        console.log('OTP required for login');
-        setPendingLogin(email);
+        // OTP required - this will be handled by the login form
+        console.log('📧 OTP required for login');
         toast({
           title: "Verification required",
           description: "Please check your email for the verification code.",
         });
       }
     } catch (error: any) {
-      console.error('Login error:', error);
+      console.error('❌ Login failed:', error);
       toast({
         title: "Login failed",
         description: error.message || "Invalid credentials. Please check your email and password.",
@@ -106,28 +101,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const register = async (email: string, password: string, profile: any = {}) => {
     try {
       setIsLoading(true);
-      console.log('Attempting registration for:', email);
+      console.log('📝 Registering user:', email);
       
-      const result = await sdk.register(email, password, profile);
-      console.log('Registration successful');
+      // Add default profile data
+      const enrichedProfile = {
+        ...profile,
+        plan: 'free',
+        roles: ['user'],
+        permissions: ['read', 'write'],
+        verified: true,
+        authMethod: 'email',
+      };
       
-      // Since email verification is disabled, log in directly
-      const loginResult = await sdk.login(email, password);
+      await sdk.register(email, password, enrichedProfile);
+      console.log('✅ Registration successful, attempting auto-login');
       
-      if (typeof loginResult === 'string') {
-        localStorage.setItem('auth_token', loginResult);
-        const sessionData = sdk.getSession(loginResult);
-        if (sessionData) {
-          setSession(sessionData);
-          setUser(sessionData.user);
-          toast({
-            title: "Welcome to MyBiz AI!",
-            description: "Your account has been created successfully.",
-          });
-        }
-      }
+      // Auto-login after successful registration
+      await login(email, password);
+      
+      toast({
+        title: "Welcome to MyBiz AI!",
+        description: "Your account has been created successfully.",
+      });
     } catch (error: any) {
-      console.error('Registration error:', error);
+      console.error('❌ Registration failed:', error);
       toast({
         title: "Registration failed",
         description: error.message || "Failed to create account. Please try again.",
@@ -142,19 +139,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const verifyOTP = async (email: string, otp: string) => {
     try {
       setIsLoading(true);
+      console.log('🔐 Verifying OTP for:', email);
+      
       const token = await sdk.verifyLoginOTP(email, otp);
-      localStorage.setItem('auth_token', token);
       const sessionData = sdk.getSession(token);
+      
       if (sessionData) {
         setSession(sessionData);
         setUser(sessionData.user);
-        setPendingLogin(null);
+        setSessionToken(token);
+        
+        console.log('✅ OTP verification successful');
         toast({
           title: "Verification successful",
           description: "Welcome to MyBiz AI!",
         });
+      } else {
+        throw new Error('Failed to create session after OTP verification');
       }
     } catch (error: any) {
+      console.error('❌ OTP verification failed:', error);
       toast({
         title: "Verification failed",
         description: error.message || "Invalid verification code",
@@ -168,21 +172,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = async () => {
     try {
-      const token = localStorage.getItem('auth_token');
-      if (token) {
-        sdk.destroySession(token);
-        localStorage.removeItem('auth_token');
+      console.log('🚪 Logging out user');
+      
+      if (sessionToken) {
+        sdk.destroySession(sessionToken);
       }
+      
       setUser(null);
       setSession(null);
-      setPendingLogin(null);
-      console.log('Logout successful');
+      setSessionToken(null);
+      
+      console.log('✅ Logout successful');
       toast({
         title: "Logged out",
         description: "You have been successfully logged out.",
       });
     } catch (error: any) {
-      console.error('Logout error:', error);
+      console.error('❌ Logout error:', error);
+      // Still clear local state even if there's an error
+      setUser(null);
+      setSession(null);
+      setSessionToken(null);
     }
   };
 
@@ -227,9 +237,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const refreshUser = async () => {
-    const token = localStorage.getItem('auth_token');
-    if (token) {
-      const sessionData = sdk.getSession(token);
+    if (sessionToken) {
+      const sessionData = sdk.getSession(sessionToken);
       if (sessionData) {
         setSession(sessionData);
         setUser(sessionData.user);
@@ -241,6 +250,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     user,
     session,
     isLoading,
+    isAuthenticated,
     login,
     register,
     logout,
