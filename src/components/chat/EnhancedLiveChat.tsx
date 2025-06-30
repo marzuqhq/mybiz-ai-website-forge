@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { MessageCircle, X, Send, User, Bot, Minimize2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -401,19 +402,16 @@ How can I assist you today?`,
                                   
                                   if (language) {
                                     return (
-                                      <SyntaxHighlighter
-                                        style={vscDarkPlus}
-                                        language={language}
-                                        PreTag="div"
-                                        customStyle={{
-                                          margin: '0',
-                                          borderRadius: '6px',
-                                          fontSize: '0.875rem'
-                                        } as { [key: string]: React.CSSProperties }}
-                                        {...props}
-                                      >
-                                        {String(children).replace(/\n$/, '')}
-                                      </SyntaxHighlighter>
+                                      <div className="rounded-md overflow-hidden text-sm">
+                                        <SyntaxHighlighter
+                                          style={vscDarkPlus}
+                                          language={language}
+                                          PreTag="div"
+                                          {...props}
+                                        >
+                                          {String(children).replace(/\n$/, '')}
+                                        </SyntaxHighlighter>
+                                      </div>
                                     );
                                   }
                                   
