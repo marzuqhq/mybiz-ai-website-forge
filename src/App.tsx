@@ -1,4 +1,3 @@
-
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -7,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import Header from "@/components/layout/Header";
 import EnhancedLiveChat from "@/components/chat/EnhancedLiveChat";
+import PublicWebsiteRouter from "@/components/public/PublicWebsiteRouter";
 import Index from "./pages/Index";
 import LoginForm from "./components/auth/LoginForm";
 import RegisterForm from "./components/auth/RegisterForm";
@@ -37,6 +37,7 @@ import TermsOfService from "./pages/legal/TermsOfService";
 import CookiePolicy from "./pages/legal/CookiePolicy";
 import GDPR from "./pages/legal/GDPR";
 import Security from "./pages/legal/Security";
+import BusinessTools from "./pages/BusinessTools";
 
 const queryClient = new QueryClient();
 
@@ -48,46 +49,196 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <div className="min-h-screen bg-gray-50">
-            <Header />
             <Routes>
-              <Route path="/" element={<Index />} />
-              <Route path="/login" element={<LoginForm />} />
-              <Route path="/register" element={<RegisterForm />} />
-              <Route path="/create" element={<CreateWebsiteForm />} />
-              <Route path="/website/:websiteId" element={<WebsiteEditor />} />
-              <Route path="/website/:websiteId/cms" element={<CMSManager />} />
-              <Route path="/admin" element={<AdminDashboard />} />
+              {/* Public website routes - these come FIRST for priority */}
+              <Route path="/:slug" element={<PublicWebsiteRouter />} />
+              <Route path="/:slug/:pageSlug" element={<PublicWebsiteRouter />} />
+              
+              {/* App routes */}
+              <Route path="/" element={
+                <>
+                  <Header />
+                  <Index />
+                </>
+              } />
+              <Route path="/login" element={
+                <>
+                  <Header />
+                  <LoginForm />
+                </>
+              } />
+              <Route path="/register" element={
+                <>
+                  <Header />
+                  <RegisterForm />
+                </>
+              } />
+              <Route path="/create" element={
+                <>
+                  <Header />
+                  <CreateWebsiteForm />
+                </>
+              } />
+              <Route path="/website/:websiteId" element={
+                <>
+                  <Header />
+                  <WebsiteEditor />
+                </>
+              } />
+              <Route path="/website/:websiteId/cms" element={
+                <>
+                  <Header />
+                  <CMSManager />
+                </>
+              } />
+              <Route path="/admin" element={
+                <>
+                  <Header />
+                  <AdminDashboard />
+                </>
+              } />
+              <Route path="/tools" element={
+                <>
+                  <Header />
+                  <BusinessTools />
+                </>
+              } />
               
               {/* Product Pages */}
-              <Route path="/features" element={<Features />} />
-              <Route path="/how-it-works" element={<HowItWorks />} />
-              <Route path="/pricing" element={<Pricing />} />
-              <Route path="/templates" element={<Templates />} />
-              <Route path="/api" element={<API />} />
+              <Route path="/features" element={
+                <>
+                  <Header />
+                  <Features />
+                </>
+              } />
+              <Route path="/how-it-works" element={
+                <>
+                  <Header />
+                  <HowItWorks />
+                </>
+              } />
+              <Route path="/pricing" element={
+                <>
+                  <Header />
+                  <Pricing />
+                </>
+              } />
+              <Route path="/templates" element={
+                <>
+                  <Header />
+                  <Templates />
+                </>
+              } />
+              <Route path="/api" element={
+                <>
+                  <Header />
+                  <API />
+                </>
+              } />
               
               {/* Company Pages */}
-              <Route path="/about" element={<About />} />
-              <Route path="/blog" element={<Blog />} />
-              <Route path="/careers" element={<Careers />} />
-              <Route path="/contact" element={<Contact />} />
-              <Route path="/press-kit" element={<PressKit />} />
+              <Route path="/about" element={
+                <>
+                  <Header />
+                  <About />
+                </>
+              } />
+              <Route path="/blog" element={
+                <>
+                  <Header />
+                  <Blog />
+                </>
+              } />
+              <Route path="/careers" element={
+                <>
+                  <Header />
+                  <Careers />
+                </>
+              } />
+              <Route path="/contact" element={
+                <>
+                  <Header />
+                  <Contact />
+                </>
+              } />
+              <Route path="/press-kit" element={
+                <>
+                  <Header />
+                  <PressKit />
+                </>
+              } />
               
               {/* Resources Pages */}
-              <Route path="/documentation" element={<Documentation />} />
-              <Route path="/help-center" element={<HelpCenter />} />
-              <Route path="/community" element={<Community />} />
-              <Route path="/status" element={<Status />} />
-              <Route path="/changelog" element={<Changelog />} />
+              <Route path="/documentation" element={
+                <>
+                  <Header />
+                  <Documentation />
+                </>
+              } />
+              <Route path="/help-center" element={
+                <>
+                  <Header />
+                  <HelpCenter />
+                </>
+              } />
+              <Route path="/community" element={
+                <>
+                  <Header />
+                  <Community />
+                </>
+              } />
+              <Route path="/status" element={
+                <>
+                  <Header />
+                  <Status />
+                </>
+              } />
+              <Route path="/changelog" element={
+                <>
+                  <Header />
+                  <Changelog />
+                </>
+              } />
               
               {/* Legal Pages */}
-              <Route path="/privacy-policy" element={<PrivacyPolicy />} />
-              <Route path="/terms-of-service" element={<TermsOfService />} />
-              <Route path="/cookie-policy" element={<CookiePolicy />} />
-              <Route path="/gdpr" element={<GDPR />} />
-              <Route path="/security" element={<Security />} />
+              <Route path="/privacy-policy" element={
+                <>
+                  <Header />
+                  <PrivacyPolicy />
+                </>
+              } />
+              <Route path="/terms-of-service" element={
+                <>
+                  <Header />
+                  <TermsOfService />
+                </>
+              } />
+              <Route path="/cookie-policy" element={
+                <>
+                  <Header />
+                  <CookiePolicy />
+                </>
+              } />
+              <Route path="/gdpr" element={
+                <>
+                  <Header />
+                  <GDPR />
+                </>
+              } />
+              <Route path="/security" element={
+                <>
+                  <Header />
+                  <Security />  
+                </>
+              } />
               
               {/* Catch-all route MUST be last */}
-              <Route path="*" element={<NotFound />} />
+              <Route path="*" element={
+                <>
+                  <Header />
+                  <NotFound />
+                </>
+              } />
             </Routes>
             
             {/* AI-Powered Live Chat with Enhanced Features */}
