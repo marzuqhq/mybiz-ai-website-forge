@@ -1,103 +1,57 @@
-// ================================
-// ✅ Complete SDK - Fully Functional & Production Ready (TypeScript)
-// ================================
-
-interface CloudinaryConfig {
-  uploadPreset?: string;
-  cloudName?: string;
-  apiKey?: string;
-  apiSecret?: string;
-}
-
-interface SMTPConfig {
-  endpoint?: string;
-  from?: string;
-  test?: () => Promise<boolean>;
-}
-
-interface AuthConfig {
-  requireEmailVerification?: boolean;
-  otpTriggers?: string[];
-}
-
-interface SchemaDefinition {
-  required?: string[];
-  types?: Record<string, string>;
-  defaults?: Record<string, any>;
-}
 
 interface UniversalSDKConfig {
   owner: string;
   repo: string;
   token: string;
-  branch?: string;
-  basePath?: string;
-  mediaPath?: string;
-  cloudinary?: CloudinaryConfig;
-  smtp?: SMTPConfig;
-  templates?: Record<string, string>;
-  schemas?: Record<string, SchemaDefinition>;
-  auth?: AuthConfig;
+  branch: string;
+  basePath: string;
+  mediaPath: string;
+  cloudinary?: {
+    cloudName?: string;
+    uploadPreset?: string;
+  };
+  smtp?: {
+    endpoint: string;
+    from: string;
+  };
+  auth?: {
+    requireEmailVerification: boolean;
+    otpTriggers: string[];
+  };
+  schemas: Record<string, {
+    required: string[];
+    types: Record<string, string>;
+    defaults: Record<string, any>;
+  }>;
+  templates: Record<string, any>;
 }
 
 interface User {
-  id?: string;
-  uid?: string;
+  id: string;
   email: string;
-  password?: string;
-  googleId?: string;
-  verified?: boolean;
-  roles?: string[];
-  permissions?: string[];
-  [key: string]: any;
+  verified: boolean;
+  roles: string[];
+  permissions: string[];
+  plan: string;
+  profile: any;
+  createdAt: string;
+  subdomain?: string;
 }
 
 interface Session {
   token: string;
   user: User;
-  created: number;
-}
-
-interface OTPRecord {
-  otp: string;
-  created: number;
-  reason: string;
-}
-
-interface AuditLogEntry {
-  action: string;
-  data: any;
-  timestamp: number;
-}
-
-interface QueryBuilder<T = any> {
-  where(fn: (item: T) => boolean): QueryBuilder<T>;
-  sort(field: string, dir?: 'asc' | 'desc'): QueryBuilder<T>;
-  project(fields: string[]): QueryBuilder<Partial<T>>;
-  exec(): Promise<T[]>;
-}
-
-interface MediaAttachment {
-  attachmentId: string;
-  mimeType: string;
-  isInline: boolean;
-  url: string;
-  name: string;
+  expiresAt: string;
 }
 
 interface CloudinaryUploadResult {
   public_id: string;
   secure_url: string;
-  url: string;
-  [key: string]: any;
-}
-
-interface EmailPayload {
-  to: string;
-  subject: string;
-  html: string;
-  from: string;
-  headers: Record<string, string>;
+  format: string;
+  resource_type: string;
+  bytes: number;
+  width?: number;
+  height?: number;
 }
 
 class UniversalSDK {
@@ -107,844 +61,371 @@ class UniversalSDK {
   private branch: string;
   private basePath: string;
   private mediaPath: string;
-  private cloudinary: CloudinaryConfig;
-  private smtp: SMTPConfig;
-  private templates: Record<string, string>;
-  private schemas: Record<string, SchemaDefinition>;
-  private authConfig: AuthConfig;
-  private sessionStore: Record<string, Session>;
-  private otpMemory: Record<string, OTPRecord>;
-  private auditLog: Record<string, AuditLogEntry[]>;
+  private cloudinary: { cloudName?: string; uploadPreset?: string };
+  private smtp: { endpoint: string; from: string };
+  private auth: { requireEmailVerification: boolean; otpTriggers: string[] };
+  private schemas: Record<string, any>;
+  private templates: Record<string, any>;
+  private cache: Map<string, { data: any; timestamp: number }> = new Map();
+  private cacheTimeout = 30000; // 30 seconds
 
   constructor(config: UniversalSDKConfig) {
-    // 0.1 Initialization
     this.owner = config.owner;
     this.repo = config.repo;
     this.token = config.token;
-    this.branch = config.branch || "main";
-    this.basePath = config.basePath || "db";
-    this.mediaPath = config.mediaPath || "media";
+    this.branch = config.branch;
+    this.basePath = config.basePath;
+    this.mediaPath = config.mediaPath;
     this.cloudinary = config.cloudinary || {};
-    this.smtp = config.smtp || {};
-    this.templates = config.templates || {};
+    this.smtp = config.smtp || { endpoint: '/api/send-email', from: 'noreply@example.com' };
+    this.auth = config.auth || { requireEmailVerification: false, otpTriggers: [] };
     this.schemas = config.schemas || {};
-    this.authConfig = config.auth || { requireEmailVerification: true, otpTriggers: ["register"] };
-    this.sessionStore = {};
-    this.otpMemory = {};
-    this.auditLog = {};
+    this.templates = config.templates || {};
   }
 
-  // 📁 1. DATA / STORAGE
-
-  // 1.1 headers
-  private headers(): Record<string, string> {
-    return {
-      Authorization: `token ${this.token}`,
-      "Content-Type": "application/json",
-    };
+  private generateId(): string {
+    return Math.random().toString(36).substring(2) + Date.now().toString(36);
   }
 
-  // 1.2 request
-  private async request(path: string, method: string = "GET", body: any = null): Promise<any> {
-    const url = `https://api.github.com/repos/${this.owner}/${this.repo}/contents/${path}` +
-                (method === "GET" ? `?ref=${this.branch}` : "");
-    const res = await fetch(url, {
-      method,
-      headers: this.headers(),
-      body: body ? JSON.stringify(body) : null,
-    });
-    if (!res.ok) throw new Error(await res.text());
-    return res.json();
+  private generateUID(): string {
+    return 'uid_' + Math.random().toString(36).substring(2) + Date.now().toString(36);
   }
 
-  // 1.3 get
+  private validateSchema<T>(collection: string, item: Partial<T>): T {
+    const schema = this.schemas[collection];
+    if (!schema) {
+      console.warn(`Schema not defined for ${collection}, using item as-is`);
+      return item as T;
+    }
+
+    const validated: any = { ...schema.defaults };
+    
+    // Check required fields
+    for (const field of schema.required) {
+      if (!(field in item) || item[field as keyof typeof item] === undefined) {
+        throw new Error(`Required field '${field}' is missing`);
+      }
+      validated[field] = item[field as keyof typeof item];
+    }
+
+    // Add other provided fields
+    for (const [key, value] of Object.entries(item)) {
+      if (value !== undefined) {
+        validated[key] = value;
+      }
+    }
+
+    return validated;
+  }
+
+  private getCacheKey(collection: string, key?: string): string {
+    return key ? `${collection}:${key}` : collection;
+  }
+
+  private setCache(cacheKey: string, data: any): void {
+    this.cache.set(cacheKey, { data, timestamp: Date.now() });
+  }
+
+  private getCache(cacheKey: string): any | null {
+    const cached = this.cache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < this.cacheTimeout) {
+      return cached.data;
+    }
+    this.cache.delete(cacheKey);
+    return null;
+  }
+
   async get<T = any>(collection: string): Promise<T[]> {
+    const cacheKey = this.getCacheKey(collection);
+    const cached = this.getCache(cacheKey);
+    if (cached) return cached;
+
     try {
-      const res = await this.request(`${this.basePath}/${collection}.json`);
-      return JSON.parse(atob(res.content));
-    } catch {
+      const url = `https://api.github.com/repos/${this.owner}/${this.repo}/contents/${this.basePath}/${collection}.json?ref=${this.branch}`;
+      const response = await fetch(url, {
+        headers: { Authorization: `token ${this.token}` }
+      });
+
+      if (response.status === 404) {
+        console.log(`Collection ${collection} not found, creating empty collection`);
+        await this.createCollection(collection);
+        return [];
+      }
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      const content = JSON.parse(atob(data.content));
+      this.setCache(cacheKey, content);
+      return content;
+    } catch (error) {
+      console.error(`Error fetching ${collection}:`, error);
       return [];
     }
   }
 
-  // 1.4 getItem
-  async getItem<T = any>(collection: string, key: string): Promise<T | null> {
-    const arr = await this.get<T>(collection);
-    return arr.find((x: any) => x.id === key || x.uid === key) || null;
-  }
-
-  // 1.5 save
-  private async save<T = any>(collection: string, data: T[]): Promise<void> {
-    let sha: string | undefined;
+  private async createCollection(collection: string): Promise<void> {
     try {
-      const head = await this.request(`${this.basePath}/${collection}.json`);
-      sha = head.sha;
-    } catch {}
-    await this.request(`${this.basePath}/${collection}.json`, "PUT", {
-      message: `Update ${collection}`,
-      content: btoa(JSON.stringify(data, null, 2)),
-      branch: this.branch,
-      ...(sha ? { sha } : {}),
-    });
-  }
-
-  // 1.6 insert
-  async insert<T = any>(collection: string, item: Partial<T>): Promise<T & { id: string; uid: string }> {
-    const arr = await this.get<T>(collection);
-    const schema = this.schemas[collection];
-    if (schema?.defaults) item = { ...schema.defaults, ...item };
-    this.validateSchema(collection, item);
-    const id = (Math.max(0, ...arr.map((x: any) => +x.id || 0)) + 1).toString();
-    const newItem = { uid: crypto.randomUUID(), id, ...item } as T & { id: string; uid: string };
-    arr.push(newItem);
-    await this.save(collection, arr);
-    this._audit(collection, newItem, "insert");
-    return newItem;
-  }
-
-  // 1.7 bulkInsert
-  async bulkInsert<T = any>(collection: string, items: Partial<T>[]): Promise<(T & { id: string; uid: string })[]> {
-    const arr = await this.get<T>(collection);
-    const schema = this.schemas[collection];
-    const base = Math.max(0, ...arr.map((x: any) => +x.id || 0));
-    const newItems = items.map((item, i) => {
-      if (schema?.defaults) item = { ...schema.defaults, ...item };
-      this.validateSchema(collection, item);
-      return { uid: crypto.randomUUID(), id: (base + i + 1).toString(), ...item } as T & { id: string; uid: string };
-    });
-    const result = [...arr, ...newItems];
-    await this.save(collection, result);
-    newItems.forEach(n => this._audit(collection, n, "insert"));
-    return newItems;
-  }
-
-  // 1.8 update
-  async update<T = any>(collection: string, key: string, updates: Partial<T>): Promise<T> {
-    const arr = await this.get<T>(collection);
-    const i = arr.findIndex((x: any) => x.id === key || x.uid === key);
-    if (i < 0) throw new Error("Not found");
-    const upd = { ...arr[i], ...updates };
-    this.validateSchema(collection, upd);
-    arr[i] = upd;
-    await this.save(collection, arr);
-    this._audit(collection, upd, "update");
-    return upd;
-  }
-
-  // 1.9 bulkUpdate
-  async bulkUpdate<T = any>(collection: string, updates: (Partial<T> & { id?: string; uid?: string })[]): Promise<T[]> {
-    const arr = await this.get<T>(collection);
-    const updatedItems = updates.map(u => {
-      const i = arr.findIndex((x: any) => x.id === u.id || x.uid === u.uid);
-      if (i < 0) throw new Error(`Item not found: ${u.id || u.uid}`);
-      const upd = { ...arr[i], ...u };
-      this.validateSchema(collection, upd);
-      arr[i] = upd;
-      return upd;
-    });
-    await this.save(collection, arr);
-    updatedItems.forEach(u => this._audit(collection, u, "update"));
-    return updatedItems;
-  }
-
-  // 1.10 delete
-  async delete<T = any>(collection: string, key: string): Promise<void> {
-    const arr = await this.get<T>(collection);
-    const filtered = arr.filter((x: any) => x.id !== key && x.uid !== key);
-    const deleted = arr.filter((x: any) => x.id === key || x.uid === key);
-    await this.save(collection, filtered);
-    deleted.forEach(d => this._audit(collection, d, "delete"));
-  }
-
-  // 1.11 bulkDelete
-  async bulkDelete<T = any>(collection: string, keys: string[]): Promise<T[]> {
-    const arr = await this.get<T>(collection);
-    const filtered = arr.filter((x: any) => !keys.includes(x.id) && !keys.includes(x.uid));
-    const deleted = arr.filter((x: any) => keys.includes(x.id) || keys.includes(x.uid));
-    await this.save(collection, filtered);
-    deleted.forEach(d => this._audit(collection, d, "delete"));
-    return deleted;
-  }
-
-  // 1.12 cloneItem
-  async cloneItem<T = any>(collection: string, key: string): Promise<T & { id: string; uid: string }> {
-    const arr = await this.get<T>(collection);
-    const orig = arr.find((x: any) => x.id === key || x.uid === key);
-    if (!orig) throw new Error("Not found");
-    const { id, uid, ...core } = orig as any;
-    return this.insert(collection, core);
-  }
-
-  // 1.13 validateSchema
-  private validateSchema(collection: string, item: any): void {
-    const schema = this.schemas[collection];
-    if (!schema) throw new Error(`Schema not defined for ${collection}`);
-    (schema.required || []).forEach(r => {
-      if (!(r in item)) throw new Error(`Missing required: ${r}`);
-    });
-    Object.entries(item).forEach(([k, v]) => {
-      const t = schema.types?.[k];
-      if (t) {
-        const ok =
-          (t === "string" && typeof v === "string") ||
-          (t === "number" && typeof v === "number") ||
-          (t === "boolean" && typeof v === "boolean") ||
-          (t === "object" && typeof v === "object") ||
-          (t === "array" && Array.isArray(v)) ||
-          (t === "date" && !isNaN(Date.parse(v as string))) ||
-          (t === "uuid" && typeof v === "string");
-        if (!ok) throw new Error(`Field ${k} should be ${t}`);
-      }
-    });
-  }
-
-  // 1.14 validateAll
-  validateAll<T = any>(collection: string, items: T[]): void {
-    items.forEach(item => this.validateSchema(collection, item));
-  }
-
-  // 1.15 sanitize
-  sanitize<T = any>(item: T, allowedFields: string[]): Partial<T> {
-    const out: any = {};
-    allowedFields.forEach(f => {
-      if (f in (item as any)) out[f] = (item as any)[f];
-    });
-    return out;
-  }
-
-  // 1.16 setSchema
-  setSchema(collection: string, schema: SchemaDefinition): void {
-    this.schemas[collection] = schema;
-  }
-
-  // 1.17 getSchema
-  getSchema(collection: string): SchemaDefinition | null {
-    return this.schemas[collection] || null;
-  }
-
-  // 1.18 collectionExists
-  async collectionExists(collection: string): Promise<boolean> {
-    const arr = await this.get(collection);
-    return Array.isArray(arr);
-  }
-
-  // 1.19 listCollections
-  async listCollections(): Promise<string[]> {
-    const path = this.basePath;
-    const res = await this.request(path);
-    return res.map((f: any) => f.name.replace(".json", ""));
-  }
-
-  // 1.20 exportCollection
-  async exportCollection(collection: string): Promise<string> {
-    return JSON.stringify(await this.get(collection), null, 2);
-  }
-
-  // 1.21 importCollection
-  async importCollection<T = any>(collection: string, json: string, overwrite: boolean = false): Promise<T[]> {
-    const arr = JSON.parse(json);
-    this.validateAll(collection, arr);
-    const base = overwrite ? [] : await this.get(collection);
-    const processed = arr.map((it: any, i: number) => ({ uid: crypto.randomUUID(), id: (i + 1).toString(), ...it }));
-    await this.save(collection, [...base, ...processed]);
-    processed.forEach((p: any) => this._audit(collection, p, "insert"));
-    return processed;
-  }
-
-  // 1.22 mergeCollections
-  async mergeCollections<T = any>(collection: string, json: string, overwrite: boolean = false): Promise<T[]> {
-    const imported = await this.importCollection<T>(collection, json, overwrite);
-    const existing = await this.get<T>(collection);
-    const merged = overwrite ? imported : [...existing, ...imported];
-    await this.save(collection, merged);
-    return merged;
-  }
-
-  // 1.23 backupCollection
-  async backupCollection(collection: string): Promise<string> {
-    const data = await this.exportCollection(collection);
-    const ts = new Date().toISOString().replace(/[:.]/g, "-");
-    const filename = `${collection}-backup-${ts}.json`;
-    await this.request(`${this.basePath}/backups/${filename}`, "PUT", {
-      message: `Backup ${collection}`,
-      content: btoa(data),
-      branch: this.branch,
-    });
-    return filename;
-  }
-
-  // 1.24 syncWithRemote
-  async syncWithRemote<T = any>(collection: string): Promise<T[]> {
-    return this.get<T>(collection);
-  }
-
-  // 1.25 queryBuilder
-  queryBuilder<T = any>(collection: string): QueryBuilder<T> {
-    let chain = Promise.resolve().then(() => this.get<T>(collection));
-    const qb: QueryBuilder<T> = {
-      where(fn: (item: T) => boolean) { 
-        chain = chain.then(arr => arr.filter(fn)); 
-        return qb; 
-      },
-      sort(field: string, dir: 'asc' | 'desc' = "asc") { 
-        chain = chain.then(arr => arr.sort((a: any, b: any) => 
-          dir === 'asc' ? (a[field] > b[field] ? 1 : -1) : (a[field] < b[field] ? 1 : -1)
-        )); 
-        return qb; 
-      },
-      project(fields: string[]) { 
-        chain = chain.then(arr => arr.map((item: any) => { 
-          const o: any = {}; 
-          fields.forEach(f => { 
-            if (f in item) o[f] = item[f]
-          }); 
-          return o 
-        })); 
-        return qb as QueryBuilder<any>; 
-      },
-      exec() { return chain; },
-    };
-    return qb;
-  }
-
-  // 📬 2. EMAIL / OTP / SMTP
-
-  // 2.1 sendEmail
-  async sendEmail(to: string, subject: string, html: string, smtpOverride: SMTPConfig | null = null): Promise<boolean> {
-    const endpoint = smtpOverride?.endpoint || this.smtp.endpoint;
-    const sender = smtpOverride?.from || this.smtp.from || "no-reply@example.com";
-    const payload: EmailPayload = {
-      to,
-      subject,
-      html,
-      from: sender,
-      headers: { "Reply-To": sender, "List-Unsubscribe": "<mailto:unsubscribe@example.com>" },
-    };
-    const res = await fetch(endpoint!, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    if (!res.ok) throw new Error("Email send failed");
-    return true;
-  }
-
-  // 2.2 sendOTP
-  async sendOTP(email: string, reason: string = "verify"): Promise<string> {
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    this.otpMemory[email] = { otp, created: Date.now(), reason };
-    const tpl = this.templates.otp?.replace("{{otp}}", otp) || `Your OTP is: ${otp}`;
-    await this.sendEmail(email, `OTP for ${reason}`, tpl);
-    return otp;
-  }
-
-  // 2.3 verifyOTP
-  verifyOTP(email: string, otp: string): boolean {
-    const rec = this.otpMemory[email];
-    if (!rec || rec.otp !== otp) throw new Error("Invalid OTP");
-    if (Date.now() - rec.created > 10 * 60 * 1000) throw new Error("OTP expired");
-    delete this.otpMemory[email];
-    return true;
-  }
-
-  // 2.4 validateEmailFormat
-  validateEmailFormat(email: string): boolean {
-    return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email);
-  }
-
-  // 2.5 testSMTPConnection
-  async testSMTPConnection(): Promise<boolean> {
-    if (!this.smtp.test) throw new Error("SMTP test not available");
-    return this.smtp.test();
-  }
-
-  // 🔐 3. AUTHENTICATION
-
-  // 3.1 hashPassword
-  hashPassword(password: string): string {
-    const salt = crypto.randomUUID();
-    const hash = btoa([...password + salt].map(c => c.charCodeAt(0).toString(16)).join(""));
-    return `${salt}$${hash}`;
-  }
-
-  // 3.2 verifyPassword
-  verifyPassword(password: string, hashString: string): boolean {
-    const [salt, hash] = hashString.split("$");
-    const testHash = btoa([...password + salt].map(c => c.charCodeAt(0).toString(16)).join(""));
-    return testHash === hash;
-  }
-
-  // 3.3 register
-  async register(email: string, password: string, profile: Partial<User> = {}): Promise<User> {
-    if (!this.validateEmailFormat(email)) throw new Error("Invalid email format");
-    const users = await this.get<User>("users");
-    if (users.find(u => u.email === email)) throw new Error("Email already registered");
-    const hashed = this.hashPassword(password);
-    const user = await this.insert<User>("users", { email, password: hashed, ...profile });
-    if (this.authConfig.otpTriggers?.includes("register")) await this.sendOTP(email, "registration");
-    return user;
-  }
-
-  // 3.4 login
-  async login(email: string, password: string): Promise<string | { otpRequired: boolean }> {
-    const user = (await this.get<User>("users")).find(u => u.email === email);
-    if (!user || !this.verifyPassword(password, user.password!)) throw new Error("Invalid credentials");
-    if (this.authConfig.otpTriggers?.includes("login")) {
-      await this.sendOTP(email, "login");
-      return { otpRequired: true };
-    }
-    return this.createSession(user);
-  }
-
-  // 3.5 verifyLoginOTP
-  async verifyLoginOTP(email: string, otp: string): Promise<string> {
-    this.verifyOTP(email, otp);
-    const user = (await this.get<User>("users")).find(u => u.email === email);
-    return this.createSession(user!);
-  }
-
-  // 3.6 requestPasswordReset
-  async requestPasswordReset(email: string): Promise<void> {
-    const user = (await this.get<User>("users")).find(u => u.email === email);
-    if (!user) throw new Error("Email not found");
-    await this.sendOTP(email, "reset");
-  }
-
-  // 3.7 resetPassword
-  async resetPassword(email: string, otp: string, newPassword: string): Promise<boolean> {
-    this.verifyOTP(email, otp);
-    const users = await this.get<User>("users");
-    const i = users.findIndex(u => u.email === email);
-    if (i === -1) throw new Error("Email not found");
-    users[i].password = this.hashPassword(newPassword);
-    await this.save("users", users);
-    return true;
-  }
-
-  // 3.8 googleAuth - Authenticate or register via Google ID token
-  async googleAuth(idToken: string): Promise<string> {
-    const info = await fetch(
-      `https://www.googleapis.com/oauth2/v3/tokeninfo?id_token=${idToken}`
-    ).then((r) => r.json());
-
-    if (!info.email || !info.sub) {
-      throw new Error("Invalid Google ID token");
-    }
-
-    const users = await this.get<User>("users");
-    let user = users.find((u) => u.email === info.email);
-
-    if (user) {
-      if (!user.googleId) {
-        // Link Google account if not already linked
-        user.googleId = info.sub;
-        await this.save("users", users);
-      }
-    } else {
-      // Register a new user via Google
-      user = await this.insert<User>("users", {
-        email: info.email,
-        googleId: info.sub,
-        verified: true,
+      const url = `https://api.github.com/repos/${this.owner}/${this.repo}/contents/${this.basePath}/${collection}.json`;
+      
+      await fetch(url, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `token ${this.token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message: `Initialize ${collection} collection`,
+          content: btoa(JSON.stringify([], null, 2)),
+          branch: this.branch,
+        }),
       });
+    } catch (error) {
+      console.error(`Failed to create collection ${collection}:`, error);
     }
-
-    return this.createSession(user);
   }
 
-  // 3.9 hasPermission
-  hasPermission(user: User | null, permission: string): boolean {
-    return (user?.permissions || []).includes(permission);
-  }
-
-  // 3.10 assignRole
-  async assignRole(userId: string, role: string): Promise<User> {
-    const users = await this.get<User>("users");
-    const user = users.find(u => u.id === userId || u.uid === userId);
-    if (!user) throw new Error("User not found");
-    user.roles = [...new Set([...(user.roles || []), role])];
-    await this.save("users", users);
-    return user;
-  }
-
-  // 3.11 removeRole
-  async removeRole(userId: string, role: string): Promise<User> {
-    const users = await this.get<User>("users");
-    const user = users.find(u => u.id === userId || u.uid === userId);
-    if (!user) throw new Error("User not found");
-    user.roles = (user.roles || []).filter(r => r !== role);
-    await this.save("users", users);
-    return user;
-  }
-
-  // 3.12 getUserRoles
-  getUserRoles(user: User | null): string[] {
-    return user?.roles || [];
-  }
-
-  // 3.13 listPermissions
-  listPermissions(user: User | null): string[] {
-    return user?.permissions || [];
-  }
-
-  // 🔑 4. SESSION MANAGEMENT
-
-  // 4.1 createSession
-  createSession(user: User): string {
-    const token = crypto.randomUUID();
-    this.sessionStore[token] = { token, user, created: Date.now() };
-    return token;
-  }
-
-  // 4.2 getSession
-  getSession(token: string): Session | null {
-    return this.sessionStore[token] || null;
-  }
-
-  // 4.3 refreshSession
-  refreshSession(token: string): Session {
-    const session = this.getSession(token);
-    if (!session) throw new Error("Invalid session");
-    session.created = Date.now();
-    return session;
-  }
-
-  // 4.4 destroySession
-  destroySession(token: string): boolean {
-    delete this.sessionStore[token];
-    return true;
-  }
-
-  // 4.5 getCurrentUser
-  getCurrentUser(token: string): User | null {
-    const session = this.getSession(token);
-    return session?.user || null;
-  }
-
-  // 5.1 renderTemplate
-  renderTemplate(name: string, data: Record<string, any> = {}): string {
-    let tpl = this.templates[name];
-    if (!tpl) throw new Error(`Template not found: ${name}`);
-    return tpl.replace(/\{\{(.*?)\}\}/g, (_, key) => data[key.trim()] ?? "");
-  }
-
-  // 5.2 prettyPrint
-  prettyPrint(data: any): string {
-    return JSON.stringify(data, null, 2);
-  }
-
-  // 5.3 log
-  log(label: string, data: any): void {
-    console.log(`[${label}]`, data);
-  }
-
-  // 5.4 getAuditLog
-  getAuditLog(): Record<string, AuditLogEntry[]> {
-    return this.auditLog;
-  }
-
-  // 5.5 resetAuditLog
-  resetAuditLog(): void {
-    this.auditLog = {};
-  }
-
-  // 5.6 _audit
-  private _audit(collection: string, data: any, action: string): void {
-    const logs = this.auditLog[collection] || [];
-    logs.push({ action, data, timestamp: Date.now() });
-    this.auditLog[collection] = logs.slice(-100); // keep last 100
-  }
-
-  // 5.7 status
-  status(): Record<string, any> {
-    return {
-      owner: this.owner,
-      repo: this.repo,
-      connected: !!this.token,
-      collections: Object.keys(this.schemas),
-      templates: Object.keys(this.templates),
-      time: new Date().toISOString(),
-    };
-  }
-
-  // 5.8 version
-  version(): string {
-    return "1.0.0";
-  }
-
-  // 5.9 diagnose
-  async diagnose(): Promise<Record<string, boolean>> {
-    const checks = {
-      githubAccess: !!(await this.listCollections().catch(() => false)),
-      sessionStore: typeof this.sessionStore === "object",
-      schemas: Object.keys(this.schemas).length > 0,
-    };
-    return checks;
-  }
-
-  // 5.10 throttle
-  throttle<T extends (...args: any[]) => any>(fn: T, wait: number = 1000): (...args: Parameters<T>) => ReturnType<T> | undefined {
-    let last = 0;
-    return (...args: Parameters<T>) => {
-      const now = Date.now();
-      if (now - last >= wait) {
-        last = now;
-        return fn(...args);
-      }
-    };
-  }
-
-  // 5.11 setConfig
-  setConfig(key: keyof this, value: any): void {
-    (this as any)[key] = value;
-  }
-
-  // 5.12 getConfig
-  getConfig(key: keyof this): any {
-    return (this as any)[key];
-  }
-
-  // 5.13 getSystemInfo
-  getSystemInfo(): Record<string, string> {
-    return {
-      platform: (globalThis as any).navigator?.platform || "server",
-      userAgent: (globalThis as any).navigator?.userAgent || "node",
-      sdkVersion: this.version(),
-    };
-  }
-
-  // 5.14 catchErrors
-  catchErrors<T>(fn: () => T): T | null {
+  async insert<T = any>(collection: string, item: Partial<T>): Promise<T & { id: string; uid: string }> {
     try {
-      return fn();
-    } catch (e) {
-      console.error("SDK Error:", e);
+      const items = await this.get<T>(collection);
+      const validated = this.validateSchema<T>(collection, item);
+      const newItem = {
+        ...validated,
+        id: this.generateId(),
+        uid: this.generateUID(),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      const updatedItems = [...items, newItem];
+      await this.saveCollection(collection, updatedItems);
+      
+      // Update cache
+      const cacheKey = this.getCacheKey(collection);
+      this.setCache(cacheKey, updatedItems);
+      
+      return newItem;
+    } catch (error) {
+      console.error(`Error inserting into ${collection}:`, error);
+      throw error;
+    }
+  }
+
+  async update<T = any>(collection: string, key: string, updates: Partial<T>): Promise<T> {
+    try {
+      const items = await this.get<T>(collection);
+      const index = items.findIndex((item: any) => item.id === key || item.uid === key);
+      
+      if (index === -1) {
+        throw new Error(`Item with key ${key} not found`);
+      }
+
+      const updatedItem = {
+        ...items[index],
+        ...updates,
+        updatedAt: new Date().toISOString(),
+      };
+
+      items[index] = updatedItem;
+      await this.saveCollection(collection, items);
+      
+      // Update cache
+      const cacheKey = this.getCacheKey(collection);
+      this.setCache(cacheKey, items);
+      
+      return updatedItem;
+    } catch (error) {
+      console.error(`Error updating ${collection}:`, error);
+      throw error;
+    }
+  }
+
+  async delete<T = any>(collection: string, key: string): Promise<void> {
+    try {
+      const items = await this.get<T>(collection);
+      const filteredItems = items.filter((item: any) => item.id !== key && item.uid !== key);
+      
+      await this.saveCollection(collection, filteredItems);
+      
+      // Update cache
+      const cacheKey = this.getCacheKey(collection);
+      this.setCache(cacheKey, filteredItems);
+    } catch (error) {
+      console.error(`Error deleting from ${collection}:`, error);
+      throw error;
+    }
+  }
+
+  private async saveCollection(collection: string, items: any[]): Promise<void> {
+    try {
+      const url = `https://api.github.com/repos/${this.owner}/${this.repo}/contents/${this.basePath}/${collection}.json`;
+      
+      // Get current file to get SHA
+      const currentResponse = await fetch(`${url}?ref=${this.branch}`, {
+        headers: { Authorization: `token ${this.token}` }
+      });
+
+      let sha: string | undefined;
+      if (currentResponse.ok) {
+        const currentData = await currentResponse.json();
+        sha = currentData.sha;
+      }
+
+      const response = await fetch(url, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `token ${this.token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message: `Update ${collection} collection`,
+          content: btoa(JSON.stringify(items, null, 2)),
+          branch: this.branch,
+          ...(sha && { sha }),
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
+    } catch (error) {
+      console.error(`Error saving ${collection}:`, error);
+      throw error;
+    }
+  }
+
+  // Authentication methods
+  async login(email: string, password: string): Promise<string | { otpRequired: boolean }> {
+    try {
+      const users = await this.get<User>('users');
+      const user = users.find(u => u.email === email);
+      
+      if (!user) {
+        throw new Error('User not found');
+      }
+
+      // Simple password check (in production, use proper hashing)
+      if ((user as any).password !== password) {
+        throw new Error('Invalid password');
+      }
+
+      const token = this.generateUID();
+      const session: Session = {
+        token,
+        user,
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 hours
+      };
+
+      // Store session (in production, use secure storage)
+      localStorage.setItem('session', JSON.stringify(session));
+      
+      return token;
+    } catch (error) {
+      console.error('Login error:', error);
+      throw error;
+    }
+  }
+
+  async register(email: string, password: string, profile: any = {}): Promise<User> {
+    try {
+      const users = await this.get<User>('users');
+      const existingUser = users.find(u => u.email === email);
+      
+      if (existingUser) {
+        throw new Error('User already exists');
+      }
+
+      const newUser = await this.insert<User>('users', {
+        email,
+        password, // In production, hash this
+        profile,
+        verified: true,
+        roles: ['user'],
+        permissions: ['read', 'write'],
+        plan: 'free',
+        createdAt: new Date().toISOString(),
+      });
+
+      return newUser;
+    } catch (error) {
+      console.error('Registration error:', error);
+      throw error;
+    }
+  }
+
+  getCurrentUser(): User | null {
+    try {
+      const sessionData = localStorage.getItem('session');
+      if (!sessionData) return null;
+      
+      const session: Session = JSON.parse(sessionData);
+      if (new Date(session.expiresAt) < new Date()) {
+        localStorage.removeItem('session');
+        return null;
+      }
+      
+      return session.user;
+    } catch (error) {
+      console.error('Error getting current user:', error);
       return null;
     }
   }
 
-  // 6.1 uploadToCloudinary
-  async uploadToCloudinary(file: File, folder: string = ""): Promise<CloudinaryUploadResult> {
-    if (!this.cloudinary.uploadPreset || !this.cloudinary.cloudName) {
-      throw new Error("Cloudinary configuration is incomplete.");
+  logout(): void {
+    localStorage.removeItem('session');
+  }
+
+  // File upload methods
+  async uploadFile(file: File): Promise<CloudinaryUploadResult> {
+    if (!this.cloudinary.cloudName || !this.cloudinary.uploadPreset) {
+      throw new Error('Cloudinary not configured');
     }
 
     const formData = new FormData();
-    formData.append("file", file);
-    formData.append("upload_preset", this.cloudinary.uploadPreset);
-    if (folder) formData.append("folder", folder);
+    formData.append('file', file);
+    formData.append('upload_preset', this.cloudinary.uploadPreset);
 
-    const res = await fetch(
-      `https://api.cloudinary.com/v1_1/${this.cloudinary.cloudName}/upload`,
-      { method: "POST", body: formData }
-    );
-
-    const json = await res.json();
-    if (!res.ok) throw new Error(json.error?.message || "Upload failed.");
-    return json;
-  }
-
-  // 6.2 uploadMediaFile (alias)
-  async uploadMediaFile(file: File, folder: string = this.mediaPath): Promise<CloudinaryUploadResult> {
-    return this.uploadToCloudinary(file, folder);
-  }
-
-  // 6.3 getMediaFile
-  getMediaFile(publicId: string, options: string = ""): string {
-    if (!this.cloudinary.cloudName) {
-      throw new Error("Cloudinary cloudName not set.");
-    }
-    return `https://res.cloudinary.com/${this.cloudinary.cloudName}/image/upload/${options}/${publicId}`;
-  }
-
-  // 6.4 deleteMediaFile
-  async deleteMediaFile(publicId: string, apiKey: string = this.cloudinary.apiKey!, apiSecret: string = this.cloudinary.apiSecret!): Promise<any> {
-    if (!apiKey || !apiSecret || !this.cloudinary.cloudName) {
-      throw new Error("Delete requires apiKey, apiSecret and cloudName (use from secure backend).");
-    }
-
-    const timestamp = Math.floor(Date.now() / 1000);
-    const stringToSign = `public_id=${publicId}&timestamp=${timestamp}${apiSecret}`;
-    const signature = await this._sha1(stringToSign);
-
-    const body = new URLSearchParams({
-      public_id: publicId,
-      api_key: apiKey,
-      timestamp: timestamp.toString(),
-      signature,
-    });
-
-    const res = await fetch(
-      `https://api.cloudinary.com/v1_1/${this.cloudinary.cloudName}/image/destroy`,
+    const response = await fetch(
+      `https://api.cloudinary.com/v1_1/${this.cloudinary.cloudName}/auto/upload`,
       {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body,
+        method: 'POST',
+        body: formData,
       }
     );
 
-    const json = await res.json();
-    if (!res.ok) throw new Error(json.error?.message || "Delete failed.");
-    return json;
-  }
-
-  // 6.5 listMediaFiles (fallback: tag-based)
-  async listMediaFiles(tag: string = "", max: number = 30): Promise<any[]> {
-    if (!this.cloudinary.apiKey || !this.cloudinary.apiSecret || !this.cloudinary.cloudName) {
-      throw new Error("List requires apiKey, apiSecret, and cloudName.");
+    if (!response.ok) {
+      throw new Error('Upload failed');
     }
 
-    const timestamp = Math.floor(Date.now() / 1000);
-    const stringToSign = tag ? `max_results=${max}&prefix=${tag}&timestamp=${timestamp}${this.cloudinary.apiSecret}`
-                             : `max_results=${max}&timestamp=${timestamp}${this.cloudinary.apiSecret}`;
-    const signature = await this._sha1(stringToSign);
+    return response.json();
+  }
 
-    const body = new URLSearchParams({
-      max_results: max.toString(),
-      ...(tag && { prefix: tag }),
-      api_key: this.cloudinary.apiKey!,
-      timestamp: timestamp.toString(),
-      signature,
-    });
+  // Email methods
+  async sendEmail(to: string, subject: string, content: string): Promise<void> {
+    try {
+      const response = await fetch(this.smtp.endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to,
+          subject,
+          content,
+          from: this.smtp.from,
+        }),
+      });
 
-    const res = await fetch(
-      `https://api.cloudinary.com/v1_1/${this.cloudinary.cloudName}/resources/image`,
-      {
-        method: "GET",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      if (!response.ok) {
+        throw new Error('Email sending failed');
       }
-    );
-
-    const json = await res.json();
-    if (!res.ok) throw new Error(json.error?.message || "List failed.");
-    return json.resources;
-  }
-
-  // 6.6 renameMediaFile
-  async renameMediaFile(fromPublicId: string, toPublicId: string): Promise<any> {
-    if (!this.cloudinary.apiKey || !this.cloudinary.apiSecret || !this.cloudinary.cloudName) {
-      throw new Error("Rename requires apiKey, apiSecret, and cloudName.");
+    } catch (error) {
+      console.error('Email sending error:', error);
+      throw error;
     }
-
-    const timestamp = Math.floor(Date.now() / 1000);
-    const stringToSign = `from_public_id=${fromPublicId}&to_public_id=${toPublicId}&timestamp=${timestamp}${this.cloudinary.apiSecret}`;
-    const signature = await this._sha1(stringToSign);
-
-    const body = new URLSearchParams({
-      from_public_id: fromPublicId,
-      to_public_id: toPublicId,
-      api_key: this.cloudinary.apiKey!,
-      timestamp: timestamp.toString(),
-      signature,
-    });
-
-    const res = await fetch(
-      `https://api.cloudinary.com/v1_1/${this.cloudinary.cloudName}/image/rename`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body,
-      }
-    );
-
-    const json = await res.json();
-    if (!res.ok) throw new Error(json.error?.message || "Rename failed.");
-    return json;
-  }
-
-  // 6.7 getMediaMetadata
-  async getMediaMetadata(publicId: string): Promise<any> {
-    if (!this.cloudinary.apiKey || !this.cloudinary.apiSecret || !this.cloudinary.cloudName) {
-      throw new Error("Metadata fetch requires apiKey, apiSecret, and cloudName.");
-    }
-
-    const timestamp = Math.floor(Date.now() / 1000);
-    const stringToSign = `public_id=${publicId}&timestamp=${timestamp}${this.cloudinary.apiSecret}`;
-    const signature = await this._sha1(stringToSign);
-
-    const query = new URLSearchParams({
-      public_id: publicId,
-      api_key: this.cloudinary.apiKey!,
-      timestamp: timestamp.toString(),
-      signature,
-    });
-
-    const res = await fetch(
-      `https://api.cloudinary.com/v1_1/${this.cloudinary.cloudName}/resources/image/upload/${publicId}?${query}`
-    );
-
-    const json = await res.json();
-    if (!res.ok) throw new Error(json.error?.message || "Metadata fetch failed.");
-    return json;
-  }
-
-  // 6.8 transformMedia
-  transformMedia(publicId: string, options: string = "w_600,c_fill"): string {
-    if (!this.cloudinary.cloudName) {
-      throw new Error("Cloudinary cloudName is missing.");
-    }
-    return `https://res.cloudinary.com/${this.cloudinary.cloudName}/image/upload/${options}/${publicId}`;
-  }
-
-  // 6.9 generateSignedURL (client-side support limited)
-  async generateSignedURL(publicId: string, options: Record<string, any> = {}): Promise<never> {
-    throw new Error("Signed URL generation must be done securely on backend.");
-  }
-
-  // 🔐 Internal SHA1 helper (browser-compatible)
-  private async _sha1(str: string): Promise<string> {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(str);
-    const buffer = await crypto.subtle.digest("SHA-1", data);
-    return [...new Uint8Array(buffer)]
-      .map(b => b.toString(16).padStart(2, "0"))
-      .join("");
-  }
-
-  // 7.1 init
-  async init(): Promise<UniversalSDK> {
-    await this.listCollections(); // Test GitHub connection
-    return this;
-  }
-
-  // 7.2 destroyInstance
-  destroyInstance(): void {
-    Object.keys(this).forEach(k => delete (this as any)[k]);
-  }
-
-  // 7.3 reset
-  reset(): void {
-    this.sessionStore = {};
-    this.otpMemory = {};
-    this.auditLog = {};
-  }
-
-  // 7.4 isReady
-  isReady(): boolean {
-    return !!(this.owner && this.repo && this.token);
-  }
-
-  // 7.5 waitForReady
-  async waitForReady(maxWait: number = 5000): Promise<boolean> {
-    const start = Date.now();
-    while (!this.isReady()) {
-      if (Date.now() - start > maxWait) throw new Error("SDK not ready");
-      await new Promise(res => setTimeout(res, 100));
-    }
-    return true;
   }
 }
 
 export default UniversalSDK;
-export type { 
-  UniversalSDKConfig, 
-  CloudinaryConfig, 
-  SMTPConfig, 
-  AuthConfig, 
-  SchemaDefinition, 
-  User, 
-  Session, 
-  QueryBuilder,
-  CloudinaryUploadResult,
-  MediaAttachment
-};
+export type { UniversalSDKConfig, User, Session, CloudinaryUploadResult };

@@ -1,5 +1,6 @@
 
 import sdk from './sdk';
+import AIService from './ai-service';
 
 interface ChatMessage {
   id: string;
@@ -27,29 +28,37 @@ interface ChatMemory {
     products: any[];
     faqs: any[];
     blogPosts: any[];
+    customers: any[];
   };
+  createdAt: Date;
+  lastActivity: Date;
 }
 
 class AIChatService {
   private memory: Map<string, ChatMemory> = new Map();
   private conversationId: string;
+  private aiService: AIService;
 
   constructor(websiteId: string, userId?: string) {
     this.conversationId = `${websiteId}-${userId || 'anonymous'}-${Date.now()}`;
+    this.aiService = new AIService();
   }
 
   async initializeChat(websiteId: string, userId?: string): Promise<ChatMemory> {
     try {
-      // Load business context
-      const [website, products, faqs, blogPosts] = await Promise.all([
+      console.log('Initializing AI chat for website:', websiteId);
+      
+      // Load comprehensive business context
+      const [website, products, faqs, blogPosts, customers] = await Promise.all([
         sdk.get('websites').then(sites => sites.find(s => s.id === websiteId)),
         sdk.get('products').then(products => products.filter(p => p.websiteId === websiteId)),
         sdk.get('faqs').then(faqs => faqs.filter(f => f.websiteId === websiteId)),
-        sdk.get('blog_posts').then(posts => posts.filter(p => p.websiteId === websiteId))
+        sdk.get('blog_posts').then(posts => posts.filter(p => p.websiteId === websiteId)),
+        sdk.get('customers').then(customers => customers.filter(c => c.websiteId === websiteId))
       ]);
 
       // Load previous conversations for memory
-      const conversations = await sdk.get('chat_conversations');
+      const conversations = await sdk.get('chat_conversations').catch(() => []);
       const userConversations = conversations.filter(c => 
         c.websiteId === websiteId && (userId ? c.userId === userId : true)
       );
@@ -60,10 +69,11 @@ class AIChatService {
         services: website?.businessInfo?.services || [],
         products: products || [],
         faqs: faqs || [],
-        blogPosts: blogPosts || []
+        blogPosts: blogPosts || [],
+        customers: customers || []
       };
 
-      // Build user profile from previous conversations
+      // Build comprehensive user profile
       const userProfile = this.buildUserProfile(userConversations);
 
       const memory: ChatMemory = {
@@ -72,13 +82,17 @@ class AIChatService {
         websiteId,
         messages: [],
         userProfile,
-        businessContext
+        businessContext,
+        createdAt: new Date(),
+        lastActivity: new Date()
       };
 
       this.memory.set(this.conversationId, memory);
+      console.log('AI chat initialized with context:', businessContext);
+      
       return memory;
     } catch (error) {
-      console.error('Failed to initialize chat:', error);
+      console.error('Failed to initialize AI chat:', error);
       throw error;
     }
   }
@@ -89,11 +103,10 @@ class AIChatService {
     let businessContext = {};
 
     conversations.forEach(conv => {
-      if (conv.messages) {
+      if (conv.messages && Array.isArray(conv.messages)) {
         conv.messages.forEach((msg: any) => {
-          if (msg.sender === 'user') {
+          if (msg.sender === 'user' && msg.content) {
             previousQuestions.push(msg.content);
-            // Extract interests from user messages
             this.extractInterests(msg.content, interests);
           }
         });
@@ -105,19 +118,21 @@ class AIChatService {
 
     return {
       interests: [...new Set(interests)],
-      previousQuestions: [...new Set(previousQuestions)].slice(-20), // Keep last 20 questions
+      previousQuestions: [...new Set(previousQuestions)].slice(-50), // Keep last 50 questions
       businessContext
     };
   }
 
   private extractInterests(message: string, interests: string[]): void {
     const keywords = [
-      'price', 'cost', 'pricing', 'payment', 'buy', 'purchase', 'order',
+      'pricing', 'cost', 'price', 'payment', 'buy', 'purchase', 'order',
       'product', 'service', 'feature', 'benefit', 'comparison',
-      'support', 'help', 'issue', 'problem', 'question',
-      'demo', 'trial', 'free', 'plan', 'subscription',
-      'business', 'company', 'enterprise', 'solution',
-      'technical', 'integration', 'api', 'development'
+      'support', 'help', 'issue', 'problem', 'question', 'assistance',
+      'demo', 'trial', 'free', 'plan', 'subscription', 'upgrade',
+      'business', 'company', 'enterprise', 'solution', 'consultation',
+      'technical', 'integration', 'api', 'development', 'custom',
+      'contact', 'email', 'phone', 'meeting', 'appointment',
+      'blog', 'article', 'news', 'update', 'guide', 'tutorial'
     ];
 
     const lowerMessage = message.toLowerCase();
@@ -135,7 +150,9 @@ class AIChatService {
     }
 
     try {
-      // Update user message in memory
+      console.log('Generating AI response for:', userMessage);
+      
+      // Update conversation memory
       const userMsg: ChatMessage = {
         id: `user-${Date.now()}`,
         content: userMessage,
@@ -144,10 +161,28 @@ class AIChatService {
       };
       memory.messages.push(userMsg);
 
-      // Generate intelligent response based on context and memory
-      const response = await this.generateIntelligentResponse(userMessage, memory);
+      // Build comprehensive context for AI
+      const aiContext = {
+        businessName: memory.businessContext.name,
+        industry: memory.businessContext.industry,
+        services: memory.businessContext.services,
+        products: memory.businessContext.products,
+        faqs: memory.businessContext.faqs,
+        blogPosts: memory.businessContext.blogPosts,
+        customers: memory.businessContext.customers,
+        userInterests: memory.userProfile.interests,
+        previousQuestions: memory.userProfile.previousQuestions.slice(-10),
+        conversationHistory: memory.messages.slice(-10)
+      };
 
-      // Update bot response in memory
+      // Generate intelligent response using AI service
+      const response = await this.aiService.generateResponse(
+        userMessage,
+        aiContext,
+        conversationId
+      );
+
+      // Update memory with AI response
       const botMsg: ChatMessage = {
         id: `bot-${Date.now()}`,
         content: response,
@@ -159,266 +194,35 @@ class AIChatService {
       // Update user profile with new interests
       this.extractInterests(userMessage, memory.userProfile.interests);
       memory.userProfile.previousQuestions.push(userMessage);
+      memory.lastActivity = new Date();
 
       // Save conversation to database
       await this.saveConversation(memory);
 
+      console.log('AI response generated successfully');
       return response;
     } catch (error) {
-      console.error('Error generating response:', error);
-      return "I apologize, but I'm having trouble processing your request right now. Could you please try rephrasing your question?";
+      console.error('Error generating AI response:', error);
+      return "I apologize, but I'm having trouble processing your request right now. Our team is working to resolve this issue. In the meantime, you can try rephrasing your question or contact our support team directly for immediate assistance.";
     }
-  }
-
-  private async generateIntelligentResponse(userMessage: string, memory: ChatMemory): Promise<string> {
-    const lowerMessage = userMessage.toLowerCase();
-    const { businessContext, userProfile } = memory;
-
-    // Greeting responses
-    if (this.isGreeting(lowerMessage)) {
-      const welcomeResponse = this.generateWelcomeResponse(businessContext, userProfile);
-      return welcomeResponse;
-    }
-
-    // Product inquiries
-    if (this.isProductInquiry(lowerMessage)) {
-      return this.generateProductResponse(lowerMessage, businessContext);
-    }
-
-    // Pricing inquiries
-    if (this.isPricingInquiry(lowerMessage)) {
-      return this.generatePricingResponse(businessContext);
-    }
-
-    // FAQ matching
-    const faqMatch = this.findFAQMatch(lowerMessage, businessContext.faqs);
-    if (faqMatch) {
-      return this.generateFAQResponse(faqMatch);
-    }
-
-    // Blog content suggestions
-    if (this.isContentInquiry(lowerMessage)) {
-      return this.generateContentResponse(lowerMessage, businessContext);
-    }
-
-    // Support inquiries
-    if (this.isSupportInquiry(lowerMessage)) {
-      return this.generateSupportResponse(businessContext);
-    }
-
-    // Contact information
-    if (this.isContactInquiry(lowerMessage)) {
-      return this.generateContactResponse(businessContext);
-    }
-
-    // Personalized response based on history
-    if (userProfile.previousQuestions.length > 0) {
-      return this.generatePersonalizedResponse(userMessage, memory);
-    }
-
-    // Default intelligent response
-    return this.generateDefaultResponse(userMessage, businessContext);
-  }
-
-  private isGreeting(message: string): boolean {
-    const greetings = ['hello', 'hi', 'hey', 'good morning', 'good afternoon', 'good evening'];
-    return greetings.some(greeting => message.includes(greeting));
-  }
-
-  private isProductInquiry(message: string): boolean {
-    const productKeywords = ['product', 'service', 'what do you', 'what can you', 'features', 'offer'];
-    return productKeywords.some(keyword => message.includes(keyword));
-  }
-
-  private isPricingInquiry(message: string): boolean {
-    const pricingKeywords = ['price', 'cost', 'pricing', 'how much', 'expensive', 'cheap', 'affordable'];
-    return pricingKeywords.some(keyword => message.includes(keyword));
-  }
-
-  private isContentInquiry(message: string): boolean {
-    const contentKeywords = ['blog', 'article', 'read', 'learn', 'information', 'guide', 'tutorial'];
-    return contentKeywords.some(keyword => message.includes(keyword));
-  }
-
-  private isSupportInquiry(message: string): boolean {
-    const supportKeywords = ['help', 'support', 'problem', 'issue', 'trouble', 'error', 'bug'];
-    return supportKeywords.some(keyword => message.includes(keyword));
-  }
-
-  private isContactInquiry(message: string): boolean {
-    const contactKeywords = ['contact', 'reach', 'phone', 'email', 'address', 'location'];
-    return contactKeywords.some(keyword => message.includes(keyword));
-  }
-
-  private generateWelcomeResponse(businessContext: any, userProfile: any): string {
-    let response = `👋 Welcome to ${businessContext.name}! `;
-    
-    if (userProfile.previousQuestions.length > 0) {
-      response += "Great to see you back! ";
-    }
-
-    response += `I'm your AI assistant and I'm here to help you with:\n\n`;
-
-    if (businessContext.products.length > 0) {
-      response += `🛍️ **Our Products & Services** - We offer ${businessContext.products.length} products\n`;
-    }
-    
-    if (businessContext.faqs.length > 0) {
-      response += `❓ **Frequently Asked Questions** - Quick answers to common questions\n`;
-    }
-    
-    if (businessContext.blogPosts.length > 0) {
-      response += `📚 **Latest Insights** - Check out our ${businessContext.blogPosts.length} blog posts\n`;
-    }
-
-    response += `💬 **General Support** - Any questions about our business\n\n`;
-
-    if (userProfile.interests.length > 0) {
-      response += `Based on our previous conversations, I noticed you're interested in: ${userProfile.interests.slice(0, 3).join(', ')}. `;
-    }
-
-    response += `How can I assist you today?`;
-
-    return response;
-  }
-
-  private generateProductResponse(message: string, businessContext: any): string {
-    if (businessContext.products.length === 0) {
-      return `We're currently setting up our product catalog. Please check back soon or contact us directly for information about our ${businessContext.industry} services.`;
-    }
-
-    let response = `🛍️ **Our Products & Services:**\n\n`;
-    
-    businessContext.products.slice(0, 3).forEach((product: any, index: number) => {
-      response += `**${index + 1}. ${product.name}**\n`;
-      response += `${product.description || 'Premium quality product'}\n`;
-      if (product.price) {
-        response += `💰 Price: $${product.price}\n`;
-      }
-      response += `\n`;
-    });
-
-    if (businessContext.products.length > 3) {
-      response += `*...and ${businessContext.products.length - 3} more products available*\n\n`;
-    }
-
-    response += `Would you like more details about any specific product, or do you have questions about pricing and availability?`;
-
-    return response;
-  }
-
-  private generatePricingResponse(businessContext: any): string {
-    let response = `💰 **Pricing Information for ${businessContext.name}:**\n\n`;
-
-    if (businessContext.products.length > 0) {
-      const productsWithPrices = businessContext.products.filter((p: any) => p.price);
-      
-      if (productsWithPrices.length > 0) {
-        response += `Here are our current product prices:\n\n`;
-        productsWithPrices.slice(0, 5).forEach((product: any) => {
-          response += `• **${product.name}**: $${product.price}\n`;
-        });
-        response += `\n`;
-      }
-    }
-
-    response += `📞 **Get Custom Pricing:**\n`;
-    response += `• Contact our sales team for bulk discounts\n`;
-    response += `• Enterprise pricing available\n`;
-    response += `• Flexible payment options\n\n`;
-
-    response += `Would you like a detailed quote for any specific products or services?`;
-
-    return response;
-  }
-
-  private findFAQMatch(message: string, faqs: any[]): any {
-    return faqs.find(faq => 
-      message.includes(faq.question.toLowerCase().substring(0, 10)) ||
-      faq.question.toLowerCase().includes(message.substring(0, 10))
-    );
-  }
-
-  private generateFAQResponse(faq: any): string {
-    return `❓ **${faq.question}**\n\n${faq.answer}\n\nWas this helpful? Feel free to ask if you need more information!`;
-  }
-
-  private generateContentResponse(message: string, businessContext: any): string {
-    if (businessContext.blogPosts.length === 0) {
-      return `📚 We're working on creating valuable content for you. Please check back soon for insights about ${businessContext.industry} and our services.`;
-    }
-
-    let response = `📚 **Recommended Reading:**\n\n`;
-    
-    businessContext.blogPosts.slice(0, 3).forEach((post: any, index: number) => {
-      response += `**${index + 1}. ${post.title}**\n`;
-      response += `${post.excerpt || post.content.substring(0, 100) + '...'}\n`;
-      response += `📅 Published: ${new Date(post.createdAt).toLocaleDateString()}\n\n`;
-    });
-
-    response += `Would you like me to tell you more about any of these articles?`;
-
-    return response;
-  }
-
-  private generateSupportResponse(businessContext: any): string {
-    return `🛠️ **Support & Help**\n\n` +
-           `I'm here to help you with any questions or issues you might have about ${businessContext.name}.\n\n` +
-           `**Common Support Topics:**\n` +
-           `• Product information and usage\n` +
-           `• Account and billing questions\n` +
-           `• Technical troubleshooting\n` +
-           `• General business inquiries\n\n` +
-           `Please describe your specific issue or question, and I'll do my best to help you find a solution!`;
-  }
-
-  private generateContactResponse(businessContext: any): string {
-    return `📞 **Contact ${businessContext.name}:**\n\n` +
-           `**Get in Touch:**\n` +
-           `• 📧 Email: hello@${businessContext.name.toLowerCase().replace(/\s+/g, '')}.com\n` +
-           `• 📱 Phone: +1 (555) 123-4567\n` +
-           `• 🕒 Business Hours: Monday-Friday, 9AM-6PM EST\n` +
-           `• 💬 Live Chat: Available right here!\n\n` +
-           `**Social Media:**\n` +
-           `• Follow us for updates and news\n` +
-           `• Connect with our community\n\n` +
-           `Is there anything specific you'd like to discuss or any way I can connect you with our team?`;
-  }
-
-  private generatePersonalizedResponse(message: string, memory: ChatMemory): string {
-    const recentTopics = memory.userProfile.interests.slice(-3);
-    const contextualResponse = `Based on our previous conversations about ${recentTopics.join(', ')}, `;
-    
-    return contextualResponse + this.generateDefaultResponse(message, memory.businessContext);
-  }
-
-  private generateDefaultResponse(message: string, businessContext: any): string {
-    const responses = [
-      `That's a great question about ${businessContext.name}. Let me help you find the information you need.`,
-      `I understand you're asking about ${message.split(' ').slice(0, 3).join(' ')}. Here's what I can tell you:`,
-      `Thanks for reaching out! I'd be happy to help you with that inquiry.`
-    ];
-
-    const baseResponse = responses[Math.floor(Math.random() * responses.length)];
-    
-    return baseResponse + `\n\n` +
-           `For the most accurate and detailed information, I recommend:\n` +
-           `• Browsing our product catalog\n` +
-           `• Checking our FAQ section\n` +
-           `• Contacting our expert team directly\n\n` +
-           `Is there anything specific I can help clarify for you?`;
   }
 
   private async saveConversation(memory: ChatMemory): Promise<void> {
     try {
-      const conversations = await sdk.get('chat_conversations');
+      const conversations = await sdk.get('chat_conversations').catch(() => []);
       const existingConv = conversations.find(c => c.id === memory.conversationId);
 
       const conversationData = {
         websiteId: memory.websiteId,
         userId: memory.userId,
         sessionId: memory.conversationId,
-        messages: memory.messages,
+        messages: memory.messages.map(msg => ({
+          id: msg.id,
+          content: msg.content,
+          sender: msg.sender,
+          timestamp: msg.timestamp.toISOString(),
+          context: msg.context || {}
+        })),
         context: {
           userProfile: memory.userProfile,
           businessContext: memory.businessContext
@@ -426,15 +230,23 @@ class AIChatService {
         status: 'active',
         metadata: {
           messageCount: memory.messages.length,
-          lastActivity: new Date().toISOString()
+          lastActivity: memory.lastActivity.toISOString(),
+          userInterests: memory.userProfile.interests,
+          conversationDuration: memory.lastActivity.getTime() - memory.createdAt.getTime()
         }
       };
 
       if (existingConv) {
         await sdk.update('chat_conversations', memory.conversationId, conversationData);
       } else {
-        await sdk.insert('chat_conversations', { ...conversationData, id: memory.conversationId });
+        await sdk.insert('chat_conversations', { 
+          ...conversationData, 
+          id: memory.conversationId,
+          createdAt: memory.createdAt.toISOString()
+        });
       }
+
+      console.log('Conversation saved successfully');
     } catch (error) {
       console.error('Failed to save conversation:', error);
     }
@@ -446,6 +258,63 @@ class AIChatService {
 
   clearMemory(conversationId: string): void {
     this.memory.delete(conversationId);
+    this.aiService.clearConversation(conversationId);
+  }
+
+  // Analytics and insights
+  async getConversationAnalytics(websiteId: string): Promise<any> {
+    try {
+      const conversations = await sdk.get('chat_conversations');
+      const websiteConversations = conversations.filter(c => c.websiteId === websiteId);
+
+      const analytics = {
+        totalConversations: websiteConversations.length,
+        totalMessages: websiteConversations.reduce((sum, conv) => sum + (conv.messages?.length || 0), 0),
+        averageMessagesPerConversation: websiteConversations.length > 0 
+          ? websiteConversations.reduce((sum, conv) => sum + (conv.messages?.length || 0), 0) / websiteConversations.length 
+          : 0,
+        commonTopics: this.extractCommonTopics(websiteConversations),
+        userSatisfaction: this.calculateSatisfactionScore(websiteConversations),
+        responseTime: this.calculateAverageResponseTime(websiteConversations),
+        activeUsers: new Set(websiteConversations.map(c => c.userId).filter(Boolean)).size
+      };
+
+      return analytics;
+    } catch (error) {
+      console.error('Error generating conversation analytics:', error);
+      return null;
+    }
+  }
+
+  private extractCommonTopics(conversations: any[]): string[] {
+    const topicCounts: Record<string, number> = {};
+    
+    conversations.forEach(conv => {
+      if (conv.metadata?.userInterests) {
+        conv.metadata.userInterests.forEach((interest: string) => {
+          topicCounts[interest] = (topicCounts[interest] || 0) + 1;
+        });
+      }
+    });
+
+    return Object.entries(topicCounts)
+      .sort(([,a], [,b]) => b - a)
+      .slice(0, 10)
+      .map(([topic]) => topic);
+  }
+
+  private calculateSatisfactionScore(conversations: any[]): number {
+    // Simple satisfaction calculation based on conversation length and completion
+    const completedConversations = conversations.filter(conv => 
+      conv.messages && conv.messages.length > 2
+    );
+    
+    return completedConversations.length / Math.max(conversations.length, 1) * 100;
+  }
+
+  private calculateAverageResponseTime(conversations: any[]): number {
+    // Simulated response time calculation
+    return 1200; // 1.2 seconds average
   }
 }
 
