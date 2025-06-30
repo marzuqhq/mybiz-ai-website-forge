@@ -406,10 +406,10 @@ How can I assist you today?`,
                                         language={language}
                                         PreTag="div"
                                         customStyle={{
-                                          margin: 0,
+                                          margin: '0',
                                           borderRadius: '6px',
                                           fontSize: '0.875rem'
-                                        }}
+                                        } as { [key: string]: React.CSSProperties }}
                                         {...props}
                                       >
                                         {String(children).replace(/\n$/, '')}
