@@ -2,9 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/contexts/AuthContext';
-import { ArrowLeft, FileText, HelpCircle, Package, BarChart3, Users, Mail, DollarSign, FormInput } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import sdk from '@/lib/sdk';
 import BlogManager from '@/components/cms/BlogManager';
 import FAQManager from '@/components/cms/FAQManager';
@@ -13,6 +12,8 @@ import CRMManager from '@/components/cms/CRMManager';
 import EmailMarketingManager from '@/components/cms/EmailMarketingManager';
 import InvoiceManager from '@/components/cms/InvoiceManager';
 import FormBuilderManager from '@/components/cms/FormBuilderManager';
+import MobileCMSMenu from '@/components/cms/MobileCMSMenu';
+import BusinessToolsCenter from '@/components/tools/BusinessToolsCenter';
 import EnhancedLiveChat from '@/components/chat/EnhancedLiveChat';
 import AICMSController from '@/lib/ai-cms-controller';
 
@@ -20,6 +21,7 @@ interface Website {
   id: string;
   userId: string;
   name: string;
+  slug: string;
   businessInfo: any;
 }
 
@@ -31,6 +33,7 @@ const CMSManager: React.FC = () => {
   const [website, setWebsite] = useState<Website | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [aiController, setAiController] = useState<AICMSController | null>(null);
+  const [activeModule, setActiveModule] = useState('blog');
 
   useEffect(() => {
     loadWebsite();
@@ -76,6 +79,29 @@ const CMSManager: React.FC = () => {
     }
   };
 
+  const renderActiveModule = () => {
+    switch (activeModule) {
+      case 'blog':
+        return <BlogManager websiteId={websiteId!} />;
+      case 'products':
+        return <ProductManager websiteId={websiteId!} />;
+      case 'crm':
+        return <CRMManager websiteId={websiteId!} aiController={aiController} />;
+      case 'email':
+        return <EmailMarketingManager websiteId={websiteId!} aiController={aiController} />;
+      case 'invoices':
+        return <InvoiceManager websiteId={websiteId!} />;
+      case 'forms':
+        return <FormBuilderManager websiteId={websiteId!} />;
+      case 'faqs':
+        return <FAQManager websiteId={websiteId!} businessInfo={website?.businessInfo} />;
+      case 'tools':
+        return <BusinessToolsCenter />;
+      default:
+        return <BlogManager websiteId={websiteId!} />;
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -104,8 +130,8 @@ const CMSManager: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 px-6 py-4">
-        <div className="flex items-center justify-between max-w-7xl mx-auto">
+      <header className="bg-white border-b border-gray-200 px-6 py-4 lg:pl-80">
+        <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
             <Button variant="ghost" onClick={() => navigate(`/website/${websiteId}`)}>
               <ArrowLeft className="w-4 h-4 mr-2" />
@@ -113,74 +139,92 @@ const CMSManager: React.FC = () => {
             </Button>
             <div>
               <h1 className="text-xl font-semibold text-gray-900">{website.name} - AI CMS</h1>
-              <p className="text-sm text-gray-500">Complete business management platform</p>
+              <p className="text-sm text-gray-500">
+                Published at: mybiz.top/{website.slug || 'your-website'}
+              </p>
             </div>
           </div>
         </div>
       </header>
 
-      {/* Content */}
-      <div className="max-w-7xl mx-auto p-6">
-        <Tabs defaultValue="blog" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-7">
-            <TabsTrigger value="blog" className="flex items-center space-x-2">
-              <FileText className="w-4 h-4" />
-              <span>Blog</span>
-            </TabsTrigger>
-            <TabsTrigger value="products" className="flex items-center space-x-2">
-              <Package className="w-4 h-4" />
-              <span>Products</span>
-            </TabsTrigger>
-            <TabsTrigger value="crm" className="flex items-center space-x-2">
-              <Users className="w-4 h-4" />
-              <span>CRM</span>
-            </TabsTrigger>
-            <TabsTrigger value="email" className="flex items-center space-x-2">
-              <Mail className="w-4 h-4" />
-              <span>Email</span>
-            </TabsTrigger>
-            <TabsTrigger value="invoices" className="flex items-center space-x-2">
-              <DollarSign className="w-4 h-4" />
-              <span>Invoices</span>
-            </TabsTrigger>
-            <TabsTrigger value="forms" className="flex items-center space-x-2">
-              <FormInput className="w-4 h-4" />
-              <span>Forms</span>
-            </TabsTrigger>
-            <TabsTrigger value="faqs" className="flex items-center space-x-2">
-              <HelpCircle className="w-4 h-4" />
-              <span>FAQs</span>
-            </TabsTrigger>
-          </TabsList>
+      <div className="flex h-[calc(100vh-73px)]">
+        {/* Mobile CMS Menu */}
+        <MobileCMSMenu
+          onModuleSelect={setActiveModule}
+          activeModule={activeModule}
+          modules={[
+            {
+              id: 'blog',
+              name: 'Blog Manager',
+              description: 'Create and manage blog posts',
+              icon: <div>📝</div>,
+              color: 'bg-blue-500',
+              component: 'BlogManager'
+            },
+            {
+              id: 'products',
+              name: 'Product Catalog',
+              description: 'Manage your products',
+              icon: <div>📦</div>,
+              color: 'bg-green-500',
+              component: 'ProductManager'
+            },
+            {
+              id: 'crm',
+              name: 'Customer Relations',
+              description: 'Manage customers and leads',
+              icon: <div>👥</div>,
+              color: 'bg-purple-500',
+              component: 'CRMManager'
+            },
+            {
+              id: 'email',
+              name: 'Email Marketing',
+              description: 'Create email campaigns',
+              icon: <div>📧</div>,
+              color: 'bg-orange-500',
+              component: 'EmailMarketingManager'
+            },
+            {
+              id: 'invoices',
+              name: 'Invoice Management',
+              description: 'Create and track invoices',
+              icon: <div>💰</div>,
+              color: 'bg-emerald-500',
+              component: 'InvoiceManager'
+            },
+            {
+              id: 'forms',
+              name: 'Form Builder',
+              description: 'Build custom forms',
+              icon: <div>📋</div>,
+              color: 'bg-pink-500',
+              component: 'FormBuilderManager'
+            },
+            {
+              id: 'faqs',
+              name: 'FAQ Manager',
+              description: 'Manage FAQs',
+              icon: <div>❓</div>,
+              color: 'bg-yellow-500',
+              component: 'FAQManager'
+            },
+            {
+              id: 'tools',
+              name: 'Business Tools',
+              description: '25+ business tools',
+              icon: <div>🛠️</div>,
+              color: 'bg-indigo-500',
+              isNew: true,
+              component: 'BusinessToolsCenter'
+            }
+          ]}
+        />
 
-          <TabsContent value="blog">
-            <BlogManager websiteId={websiteId!} />
-          </TabsContent>
-
-          <TabsContent value="products">
-            <ProductManager websiteId={websiteId!} />
-          </TabsContent>
-
-          <TabsContent value="crm">
-            <CRMManager websiteId={websiteId!} aiController={aiController} />
-          </TabsContent>
-
-          <TabsContent value="email">
-            <EmailMarketingManager websiteId={websiteId!} aiController={aiController} />
-          </TabsContent>
-
-          <TabsContent value="invoices">
-            <InvoiceManager websiteId={websiteId!} />
-          </TabsContent>
-
-          <TabsContent value="forms">
-            <FormBuilderManager websiteId={websiteId!} />
-          </TabsContent>
-
-          <TabsContent value="faqs">
-            <FAQManager websiteId={websiteId!} businessInfo={website.businessInfo} />
-          </TabsContent>
-        </Tabs>
+        {/* Main Content Area */}
+        <div className="flex-1 overflow-y-auto p-6 lg:pl-6">
+          {renderActiveModule()}
+        </div>
       </div>
 
       {/* Enhanced AI Chat Assistant */}

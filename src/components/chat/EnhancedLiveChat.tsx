@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { MessageCircle, X, Send, User, Bot, Minimize2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -7,81 +8,87 @@ import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import sdk from '@/lib/sdk';
-
-interface Message {
-  id: string;
-  content: string;
-  sender: 'user' | 'bot';
-  timestamp: Date;
-  type?: 'text' | 'code' | 'image';
-}
+import AIChatService, { ChatMessage } from '@/lib/ai-chat-service';
 
 interface ChatContext {
   currentPage: string;
   websiteData?: any;
-  userHistory: Message[];
+  userHistory: ChatMessage[];
   businessInfo?: any;
 }
 
 const EnhancedLiveChat: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [context, setContext] = useState<ChatContext>({
     currentPage: window.location.pathname,
     userHistory: [],
   });
+  const [aiChatService, setAiChatService] = useState<AIChatService | null>(null);
+  const [conversationId, setConversationId] = useState<string>('');
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   
-  // Load chat history from sessionStorage
+  // Initialize AI Chat Service
   useEffect(() => {
-    const savedMessages = sessionStorage.getItem('chat-messages');
-    const savedContext = sessionStorage.getItem('chat-context');
-    
-    if (savedMessages) {
-      try {
-        const parsed = JSON.parse(savedMessages);
-        setMessages(parsed.map((msg: any) => ({
-          ...msg,
-          timestamp: new Date(msg.timestamp)
-        })));
-      } catch (error) {
-        console.error('Failed to load chat history:', error);
-      }
-    }
-    
-    if (savedContext) {
-      try {
-        setContext(JSON.parse(savedContext));
-      } catch (error) {
-        console.error('Failed to load chat context:', error);
-      }
-    }
+    initializeAIChat();
+  }, []);
 
-    // Initialize with welcome message if no history
-    if (!savedMessages || JSON.parse(savedMessages).length === 0) {
-      const welcomeMessage: Message = {
+  const initializeAIChat = async () => {
+    try {
+      // Get current website context
+      const websites = await sdk.get('websites');
+      const currentWebsite = websites[0]; // Assuming first website for demo
+      
+      if (currentWebsite) {
+        const chatService = new AIChatService(currentWebsite.id);
+        const memory = await chatService.initializeChat(currentWebsite.id);
+        
+        setAiChatService(chatService);
+        setConversationId(memory.conversationId);
+        
+        // Load chat history from sessionStorage
+        const savedMessages = sessionStorage.getItem('chat-messages');
+        if (savedMessages) {
+          try {
+            const parsed = JSON.parse(savedMessages);
+            setMessages(parsed.map((msg: any) => ({
+              ...msg,
+              timestamp: new Date(msg.timestamp)
+            })));
+          } catch (error) {
+            console.error('Failed to load chat history:', error);
+          }
+        }
+
+        // Initialize with welcome message if no history
+        if (!savedMessages || JSON.parse(savedMessages).length === 0) {
+          const welcomeResponse = await chatService.generateResponse('hello', memory.conversationId);
+          const welcomeMessage: ChatMessage = {
+            id: 'welcome-' + Date.now(),
+            content: welcomeResponse,
+            sender: 'bot',
+            timestamp: new Date()
+          };
+          setMessages([welcomeMessage]);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to initialize AI chat:', error);
+      // Fallback welcome message
+      const welcomeMessage: ChatMessage = {
         id: 'welcome-' + Date.now(),
-        content: `👋 Hello! I'm your AI assistant. I can help you with:
-
-- **Website questions** and navigation
-- **Business information** and services  
-- **Product details** and recommendations
-- **Technical support** and troubleshooting
-- **General inquiries** about our offerings
-
-How can I assist you today?`,
+        content: `👋 Hello! I'm your AI assistant. I can help you with questions about our website, products, and services. How can I assist you today?`,
         sender: 'bot',
-        timestamp: new Date(),
-        type: 'text'
+        timestamp: new Date()
       };
       setMessages([welcomeMessage]);
     }
-  }, []);
+  };
 
   // Save messages to sessionStorage
   useEffect(() => {
@@ -109,164 +116,42 @@ How can I assist you today?`,
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  // Enhanced AI response with context awareness
-  const generateAIResponse = async (userMessage: string): Promise<string> => {
-    try {
-      // Get business context
-      const websites = await sdk.get('websites');
-      const currentWebsite = websites[0]; // Assuming first website for demo
-      
-      let contextualInfo = '';
-      
-      // Add page-specific context
-      switch (context.currentPage) {
-        case '/':
-          contextualInfo = 'User is on the homepage. ';
-          break;
-        case '/blog':
-          const blogPosts = await sdk.get('blog_posts');
-          contextualInfo = `User is on the blog page. We have ${blogPosts.length} blog posts available. `;
-          break;
-        case '/products':
-          const products = await sdk.get('products');
-          contextualInfo = `User is on the products page. We have ${products.length} products available. `;
-          break;
-        default:
-          contextualInfo = `User is on page: ${context.currentPage}. `;
-      }
-
-      // Business information context
-      if (currentWebsite?.businessInfo) {
-        contextualInfo += `Business: ${currentWebsite.businessInfo.name || 'Our Company'}. `;
-      }
-
-      // Simple AI response logic (in production, you'd integrate with OpenAI, Claude, etc.)
-      const responses = {
-        greeting: [
-          "Hello! I'm here to help you with any questions about our website, products, or services.",
-          "Hi there! What can I help you with today?",
-          "Welcome! I'm your AI assistant. How may I assist you?"
-        ],
-        products: [
-          `${contextualInfo}I can help you find the perfect product for your needs. What are you looking for?`,
-          "Let me help you explore our product offerings. What specific type of product interests you?",
-          "I'd be happy to recommend products based on your requirements. What are you shopping for?"
-        ],
-        support: [
-          "I'm here to help with any technical issues or questions you might have. What's the problem?",
-          "Let me assist you with that. Can you describe what you're experiencing?",
-          "I'll do my best to help resolve your issue. What seems to be the trouble?"
-        ],
-        default: [
-          `${contextualInfo}That's an interesting question. Let me help you with that.`,
-          "I understand your question. Here's what I can tell you...",
-          "Based on your inquiry, here's some helpful information..."
-        ]
-      };
-
-      // Determine response category
-      const lowerMessage = userMessage.toLowerCase();
-      let category = 'default';
-      
-      if (lowerMessage.includes('hello') || lowerMessage.includes('hi') || lowerMessage.includes('hey')) {
-        category = 'greeting';
-      } else if (lowerMessage.includes('product') || lowerMessage.includes('buy') || lowerMessage.includes('shop')) {
-        category = 'products';
-      } else if (lowerMessage.includes('help') || lowerMessage.includes('support') || lowerMessage.includes('problem')) {
-        category = 'support';
-      }
-
-      // Return a random response from the category
-      const categoryResponses = responses[category as keyof typeof responses];
-      const randomResponse = categoryResponses[Math.floor(Math.random() * categoryResponses.length)];
-
-      // Add specific information based on the query
-      let additionalInfo = '';
-      
-      if (lowerMessage.includes('price') || lowerMessage.includes('cost')) {
-        additionalInfo += '\n\n💰 **Pricing Information:**\nOur pricing is competitive and transparent. Would you like me to show you specific pricing for any particular service or product?';
-      }
-      
-      if (lowerMessage.includes('contact') || lowerMessage.includes('phone') || lowerMessage.includes('email')) {
-        additionalInfo += '\n\n📞 **Contact Information:**\n- Email: hello@business.com\n- Phone: +1 (555) 123-4567\n- Hours: Mon-Fri 9AM-6PM EST';
-      }
-
-      if (lowerMessage.includes('blog') || lowerMessage.includes('article')) {
-        const blogPosts = await sdk.get('blog_posts');
-        if (blogPosts.length > 0) {
-          const recentPost = blogPosts[0];
-          additionalInfo += `\n\n📝 **Latest Blog Post:**\n**${recentPost.title}**\n${recentPost.excerpt || recentPost.content.substring(0, 100) + '...'}`;
-        }
-      }
-
-      return randomResponse + additionalInfo;
-
-    } catch (error) {
-      console.error('Error generating AI response:', error);
-      return "I apologize, but I'm having trouble processing your request right now. Please try again in a moment, or feel free to contact our support team directly.";
-    }
-  };
-
   const handleSendMessage = async () => {
-    if (!inputValue.trim()) return;
+    if (!inputValue.trim() || !aiChatService || !conversationId) return;
 
-    const userMessage: Message = {
+    const userMessage: ChatMessage = {
       id: 'user-' + Date.now(),
       content: inputValue,
       sender: 'user',
-      timestamp: new Date(),
-      type: 'text'
+      timestamp: new Date()
     };
 
     setMessages(prev => [...prev, userMessage]);
     setInputValue('');
     setIsTyping(true);
 
-    // Store conversation context
-    const updatedContext = {
-      ...context,
-      userHistory: [...context.userHistory, userMessage]
-    };
-    setContext(updatedContext);
-
     try {
       // Simulate AI thinking time
-      await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
+      await new Promise(resolve => setTimeout(resolve, 800 + Math.random() * 1200));
       
-      const aiResponse = await generateAIResponse(userMessage.content);
+      const aiResponse = await aiChatService.generateResponse(userMessage.content, conversationId);
       
-      const botMessage: Message = {
+      const botMessage: ChatMessage = {
         id: 'bot-' + Date.now(),
         content: aiResponse,
         sender: 'bot',
-        timestamp: new Date(),
-        type: 'text'
+        timestamp: new Date()
       };
 
       setMessages(prev => [...prev, botMessage]);
-      
-      // Save conversation to database
-      try {
-        const conversation = {
-          websiteId: 'current-website',
-          messages: [...context.userHistory, userMessage, botMessage],
-          context: updatedContext,
-          status: 'active'
-        };
-        
-        await sdk.insert('chat_conversations', conversation);
-      } catch (error) {
-        console.warn('Failed to save conversation:', error);
-      }
 
     } catch (error) {
       console.error('Error getting AI response:', error);
-      const errorMessage: Message = {
+      const errorMessage: ChatMessage = {
         id: 'error-' + Date.now(),
-        content: "I'm sorry, I'm having trouble responding right now. Please try again in a moment.",
+        content: "I'm sorry, I'm having trouble responding right now. Please try again in a moment, or feel free to contact our support team directly.",
         sender: 'bot',
-        timestamp: new Date(),
-        type: 'text'
+        timestamp: new Date()
       };
       setMessages(prev => [...prev, errorMessage]);
     } finally {
@@ -293,21 +178,17 @@ How can I assist you today?`,
     setIsMinimized(true);
   };
 
-  const clearChat = () => {
+  const clearChat = async () => {
     setMessages([]);
     setContext({ currentPage: window.location.pathname, userHistory: [] });
     sessionStorage.removeItem('chat-messages');
     sessionStorage.removeItem('chat-context');
     
-    // Add welcome message
-    const welcomeMessage: Message = {
-      id: 'welcome-' + Date.now(),
-      content: "Chat cleared! How can I help you today?",
-      sender: 'bot',
-      timestamp: new Date(),
-      type: 'text'
-    };
-    setMessages([welcomeMessage]);
+    // Clear AI memory and reinitialize
+    if (aiChatService && conversationId) {
+      aiChatService.clearMemory(conversationId);
+      await initializeAIChat();
+    }
   };
 
   const formatTimestamp = (timestamp: Date) => {
@@ -401,7 +282,7 @@ How can I assist you today?`,
                                   
                                   if (language) {
                                     return (
-                                      <div className="rounded-md overflow-hidden text-sm">
+                                      <div className="rounded-md overflow-hidden text-sm bg-gray-900">
                                         <SyntaxHighlighter
                                           style={vscDarkPlus as any}
                                           language={language}
@@ -414,9 +295,7 @@ How can I assist you today?`,
                                   }
                                   
                                   return (
-                                    <code 
-                                      className="bg-gray-100 text-gray-800 px-1 py-0.5 rounded text-sm"
-                                    >
+                                    <code className="bg-gray-100 text-gray-800 px-1 py-0.5 rounded text-sm">
                                       {children}
                                     </code>
                                   );

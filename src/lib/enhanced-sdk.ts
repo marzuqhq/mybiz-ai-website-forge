@@ -58,7 +58,7 @@ const sdkConfig: UniversalSDKConfig = {
         userId: 'string',
         name: 'string',
         domain: 'string',
-        subdomain: 'string',
+        slug: 'string',
         theme: 'object',
         seoConfig: 'object',
         status: 'string',
@@ -69,9 +69,12 @@ const sdkConfig: UniversalSDKConfig = {
         analytics: 'object',
         content: 'object',
         pages: 'array',
+        publicUrl: 'string',
       },
       defaults: {
         status: 'active',
+        slug: '',
+        publicUrl: '',
         theme: {
           primaryColor: '#6366F1',
           secondaryColor: '#8B5CF6',
@@ -97,6 +100,50 @@ const sdkConfig: UniversalSDKConfig = {
         },
         content: {},
         pages: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    },
+    pages: {
+      required: ['websiteId', 'title'],
+      types: {
+        websiteId: 'string',
+        title: 'string',
+        slug: 'string',
+        type: 'string',
+        blocks: 'array',
+        seoMeta: 'object',
+        status: 'string',
+        createdAt: 'date',
+        updatedAt: 'date',
+      },
+      defaults: {
+        slug: '',
+        type: 'page',
+        blocks: [],
+        seoMeta: {},
+        status: 'published',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    },
+    blocks: {
+      required: ['pageId', 'type'],
+      types: {
+        pageId: 'string',
+        type: 'string',
+        content: 'object',
+        order: 'number',
+        aiGenerated: 'boolean',
+        editable: 'boolean',
+        createdAt: 'date',
+        updatedAt: 'date',
+      },
+      defaults: {
+        content: {},
+        order: 0,
+        aiGenerated: false,
+        editable: true,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       },
@@ -134,6 +181,61 @@ const sdkConfig: UniversalSDKConfig = {
         category: 'general',
       },
     },
+    posts: {
+      required: ['websiteId', 'title', 'content'],
+      types: {
+        websiteId: 'string',
+        title: 'string',
+        content: 'string',
+        excerpt: 'string',
+        slug: 'string',
+        status: 'string',
+        publishedAt: 'date',
+        createdAt: 'date',
+        updatedAt: 'date',
+        author: 'string',
+        tags: 'array',
+        featuredImage: 'string',
+        seoTitle: 'string',
+        seoDescription: 'string',
+        category: 'string',
+      },
+      defaults: {
+        status: 'published',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        tags: [],
+        excerpt: '',
+        slug: '',
+        author: '',
+        featuredImage: '',
+        seoTitle: '',
+        seoDescription: '',
+        category: 'general',
+      },
+    },
+    faqs: {
+      required: ['websiteId', 'question', 'answer'],
+      types: {
+        websiteId: 'string',
+        question: 'string',
+        answer: 'string',
+        category: 'string',
+        status: 'string',
+        order: 'number',
+        tags: 'array',
+        createdAt: 'date',
+        updatedAt: 'date',
+      },
+      defaults: {
+        category: 'general',
+        status: 'published',
+        order: 0,
+        tags: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    },
     customers: {
       required: ['websiteId', 'email'],
       types: {
@@ -148,6 +250,7 @@ const sdkConfig: UniversalSDKConfig = {
         createdAt: 'date',
         lastContact: 'date',
         notes: 'string',
+        source: 'string',
       },
       defaults: {
         status: 'active',
@@ -156,6 +259,7 @@ const sdkConfig: UniversalSDKConfig = {
         createdAt: new Date().toISOString(),
         lastContact: new Date().toISOString(),
         notes: '',
+        source: 'manual',
       },
     },
     products: {
@@ -174,6 +278,7 @@ const sdkConfig: UniversalSDKConfig = {
         updatedAt: 'date',
         features: 'array',
         specifications: 'object',
+        slug: 'string',
       },
       defaults: {
         status: 'active',
@@ -181,8 +286,106 @@ const sdkConfig: UniversalSDKConfig = {
         images: [],
         features: [],
         specifications: {},
+        slug: '',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
+      },
+    },
+    email_campaigns: {
+      required: ['websiteId', 'subject', 'content'],
+      types: {
+        websiteId: 'string',
+        subject: 'string',
+        content: 'string',
+        status: 'string',
+        type: 'string',
+        scheduledAt: 'date',
+        sentAt: 'date',
+        createdAt: 'date',
+        updatedAt: 'date',
+        recipients: 'array',
+        metrics: 'object',
+        alternativeSubjects: 'array',
+      },
+      defaults: {
+        status: 'draft',
+        type: 'promotional',
+        recipients: [],
+        metrics: { sent: 0, opened: 0, clicked: 0 },
+        alternativeSubjects: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    },
+    invoices: {
+      required: ['websiteId', 'invoiceNumber', 'clientEmail', 'items', 'total'],
+      types: {
+        websiteId: 'string',
+        invoiceNumber: 'string',
+        clientEmail: 'string',
+        clientName: 'string',
+        clientAddress: 'string',
+        items: 'array',
+        subtotal: 'number',
+        tax: 'number',
+        total: 'number',
+        status: 'string',
+        dueDate: 'date',
+        createdAt: 'date',
+        updatedAt: 'date',
+        paidAt: 'date',
+        notes: 'string',
+      },
+      defaults: {
+        status: 'draft',
+        subtotal: 0,
+        tax: 0,
+        notes: '',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    },
+    forms: {
+      required: ['websiteId', 'name', 'fields'],
+      types: {
+        websiteId: 'string',
+        name: 'string',
+        fields: 'array',
+        settings: 'object',
+        submissions: 'array',
+        status: 'string',
+        createdAt: 'date',
+        updatedAt: 'date',
+        slug: 'string',
+      },
+      defaults: {
+        fields: [],
+        settings: {
+          submitMessage: 'Thank you for your submission!',
+          emailNotification: false,
+          notificationEmail: '',
+          redirectUrl: '',
+        },
+        submissions: [],
+        status: 'active',
+        slug: '',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    },
+    form_submissions: {
+      required: ['formId', 'data'],
+      types: {
+        formId: 'string',
+        data: 'object',
+        ipAddress: 'string',
+        userAgent: 'string',
+        createdAt: 'date',
+        status: 'string',
+      },
+      defaults: {
+        status: 'new',
+        createdAt: new Date().toISOString(),
       },
     },
     chat_conversations: {
@@ -205,6 +408,26 @@ const sdkConfig: UniversalSDKConfig = {
         metadata: {},
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
+      },
+    },
+    business_tools: {
+      required: ['name', 'category', 'description'],
+      types: {
+        name: 'string',
+        category: 'string',
+        description: 'string',
+        icon: 'string',
+        component: 'string',
+        features: 'array',
+        status: 'string',
+        isPremium: 'boolean',
+        createdAt: 'date',
+      },
+      defaults: {
+        status: 'active',
+        isPremium: false,
+        features: [],
+        createdAt: new Date().toISOString(),
       },
     },
   },
@@ -286,7 +509,11 @@ class RobustSDK extends UniversalSDK {
     }, 'GitHub Connection Test');
 
     // Initialize essential collections with better error handling
-    const essentialCollections = ['users', 'websites', 'blog_posts', 'customers', 'products'];
+    const essentialCollections = [
+      'users', 'websites', 'pages', 'blocks', 'blog_posts', 'posts', 'faqs', 
+      'customers', 'products', 'email_campaigns', 'invoices', 'forms', 
+      'form_submissions', 'chat_conversations', 'business_tools'
+    ];
     
     for (const collection of essentialCollections) {
       await this.withRetryLogic(async () => {
@@ -340,6 +567,34 @@ class RobustSDK extends UniversalSDK {
     }
   }
 
+  // Check if slug is available
+  async isSlugAvailable(slug: string): Promise<boolean> {
+    try {
+      const websites = await this.get('websites');
+      return !websites.some((w: any) => w.slug === slug);
+    } catch (error) {
+      console.error('Error checking slug availability:', error);
+      return false;
+    }
+  }
+
+  // Generate unique slug
+  async generateUniqueSlug(baseName: string): Promise<string> {
+    let slug = baseName.toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+    
+    let counter = 1;
+    let originalSlug = slug;
+    
+    while (!(await this.isSlugAvailable(slug))) {
+      slug = `${originalSlug}-${counter}`;
+      counter++;
+    }
+    
+    return slug;
+  }
+
   // Override core methods with initialization check
   async get<T = any>(collection: string): Promise<T[]> {
     await this.ensureInitialized();
@@ -365,6 +620,15 @@ class RobustSDK extends UniversalSDK {
       () => super.update<T>(collection, key, updates),
       `Update ${collection}`,
       `update-${collection}-${key}`
+    );
+  }
+
+  async delete<T = any>(collection: string, key: string): Promise<void> {
+    await this.ensureInitialized();
+    return this.withRetryLogic(
+      () => super.delete(collection, key),
+      `Delete from ${collection}`,
+      `delete-${collection}-${key}`
     );
   }
 
