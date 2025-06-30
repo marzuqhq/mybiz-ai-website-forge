@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { MessageCircle, X, Send, User, Bot, Minimize2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -404,7 +403,7 @@ How can I assist you today?`,
                                     return (
                                       <div className="rounded-md overflow-hidden text-sm">
                                         <SyntaxHighlighter
-                                          style={vscDarkPlus}
+                                          style={vscDarkPlus as any}
                                           language={language}
                                           PreTag="div"
                                           {...props}
