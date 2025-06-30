@@ -1,4 +1,3 @@
-
 import UniversalSDK, { 
   UniversalSDKConfig, 
   User, 
@@ -534,36 +533,10 @@ class RobustSDK extends UniversalSDK {
     } catch (error: any) {
       if (error.message.includes('404') || error.message.includes('Not Found')) {
         console.log(`📝 Creating collection: ${collection}`);
-        await this.createCollection(collection);
+        // Collection will be created automatically by the parent class
       } else {
         throw error;
       }
-    }
-  }
-
-  private async createCollection(collection: string): Promise<void> {
-    const url = `https://api.github.com/repos/${(this as any).owner}/${(this as any).repo}/contents/${(this as any).basePath}/${collection}.json`;
-    
-    const response = await fetch(url, {
-      method: 'PUT',
-      headers: {
-        'Authorization': `token ${(this as any).token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        message: `Initialize ${collection} collection`,
-        content: btoa(JSON.stringify([], null, 2)),
-        branch: (this as any).branch,
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      if (response.status === 422 && errorText.includes('already exists')) {
-        console.log(`ℹ️ Collection ${collection} already exists`);
-        return;
-      }
-      throw new Error(`Failed to create ${collection}: ${response.status} ${errorText}`);
     }
   }
 
@@ -582,6 +555,7 @@ class RobustSDK extends UniversalSDK {
   async generateUniqueSlug(baseName: string): Promise<string> {
     let slug = baseName.toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
+      .replace(/--+/g, '-')
       .replace(/^-+|-+$/g, '');
     
     let counter = 1;
@@ -602,6 +576,15 @@ class RobustSDK extends UniversalSDK {
       () => super.get<T>(collection),
       `Get ${collection}`,
       `get-${collection}`
+    );
+  }
+
+  async getItem<T = any>(collection: string, id: string): Promise<T | null> {
+    await this.ensureInitialized();
+    return this.withRetryLogic(
+      () => super.getItem<T>(collection, id),
+      `Get item from ${collection}`,
+      `getItem-${collection}-${id}`
     );
   }
 

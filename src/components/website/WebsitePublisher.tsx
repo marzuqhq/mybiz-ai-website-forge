@@ -95,7 +95,9 @@ const WebsitePublisher: React.FC<WebsitePublisherProps> = ({ website, onUpdate }
         updatedAt: new Date().toISOString()
       });
 
-      onUpdate(updatedWebsite);
+      // Properly merge the updated data with existing website data
+      const mergedWebsite = { ...website, ...updatedWebsite };
+      onUpdate(mergedWebsite);
       setPublishedUrl(`https://mybiz.top/${newSlug}`);
       
       toast({
@@ -137,7 +139,9 @@ const WebsitePublisher: React.FC<WebsitePublisherProps> = ({ website, onUpdate }
         updatedAt: new Date().toISOString()
       });
 
-      onUpdate(updatedWebsite);
+      // Properly merge the updated data with existing website data
+      const mergedWebsite = { ...website, ...updatedWebsite };
+      onUpdate(mergedWebsite);
       setPublishedUrl(`https://mybiz.top/${finalSlug}`);
       
       toast({

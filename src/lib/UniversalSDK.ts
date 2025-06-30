@@ -29,6 +29,7 @@ interface UniversalSDKConfig {
 interface User {
   id: string;
   email: string;
+  password?: string;
   verified: boolean;
   roles: string[];
   permissions: string[];
@@ -68,6 +69,7 @@ class UniversalSDK {
   private templates: Record<string, any>;
   private cache: Map<string, { data: any; timestamp: number }> = new Map();
   private cacheTimeout = 30000; // 30 seconds
+  private sessions: Map<string, Session> = new Map();
 
   constructor(config: UniversalSDKConfig) {
     this.owner = config.owner;
@@ -148,7 +150,7 @@ class UniversalSDK {
 
       if (response.status === 404) {
         console.log(`Collection ${collection} not found, creating empty collection`);
-        await this.createCollection(collection);
+        await this.initializeCollection(collection);
         return [];
       }
 
@@ -166,7 +168,17 @@ class UniversalSDK {
     }
   }
 
-  private async createCollection(collection: string): Promise<void> {
+  async getItem<T = any>(collection: string, id: string): Promise<T | null> {
+    try {
+      const items = await this.get<T>(collection);
+      return items.find((item: any) => item.id === id || item.uid === id) || null;
+    } catch (error) {
+      console.error(`Error getting item from ${collection}:`, error);
+      return null;
+    }
+  }
+
+  private async initializeCollection(collection: string): Promise<void> {
     try {
       const url = `https://api.github.com/repos/${this.owner}/${this.repo}/contents/${this.basePath}/${collection}.json`;
       
@@ -308,7 +320,7 @@ class UniversalSDK {
       }
 
       // Simple password check (in production, use proper hashing)
-      if ((user as any).password !== password) {
+      if (user.password !== password) {
         throw new Error('Invalid password');
       }
 
@@ -319,7 +331,8 @@ class UniversalSDK {
         expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 hours
       };
 
-      // Store session (in production, use secure storage)
+      // Store session
+      this.sessions.set(token, session);
       localStorage.setItem('session', JSON.stringify(session));
       
       return token;
@@ -356,6 +369,73 @@ class UniversalSDK {
     }
   }
 
+  getSession(token: string): Session | null {
+    const session = this.sessions.get(token);
+    if (session && new Date(session.expiresAt) > new Date()) {
+      return session;
+    }
+    
+    // Try to get from localStorage
+    try {
+      const sessionData = localStorage.getItem('session');
+      if (sessionData) {
+        const session: Session = JSON.parse(sessionData);
+        if (new Date(session.expiresAt) > new Date()) {
+          this.sessions.set(token, session);
+          return session;
+        }
+      }
+    } catch (error) {
+      console.error('Error getting session:', error);
+    }
+    
+    return null;
+  }
+
+  destroySession(token: string): void {
+    this.sessions.delete(token);
+    localStorage.removeItem('session');
+  }
+
+  async verifyLoginOTP(email: string, otp: string): Promise<string> {
+    // Mock OTP verification - in production, verify against stored OTP
+    const token = this.generateUID();
+    const users = await this.get<User>('users');
+    const user = users.find(u => u.email === email);
+    
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    const session: Session = {
+      token,
+      user,
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+    };
+
+    this.sessions.set(token, session);
+    localStorage.setItem('session', JSON.stringify(session));
+    
+    return token;
+  }
+
+  async requestPasswordReset(email: string): Promise<void> {
+    // Mock password reset request
+    console.log('Password reset requested for:', email);
+  }
+
+  async resetPassword(email: string, otp: string, newPassword: string): Promise<void> {
+    // Mock password reset
+    const users = await this.get<User>('users');
+    const userIndex = users.findIndex(u => u.email === email);
+    
+    if (userIndex === -1) {
+      throw new Error('User not found');
+    }
+
+    await this.update('users', users[userIndex].id, { password: newPassword });
+  }
+
   getCurrentUser(): User | null {
     try {
       const sessionData = localStorage.getItem('session');
@@ -376,6 +456,7 @@ class UniversalSDK {
 
   logout(): void {
     localStorage.removeItem('session');
+    this.sessions.clear();
   }
 
   // File upload methods
