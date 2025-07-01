@@ -121,7 +121,7 @@ const PasswordGenerator: React.FC = () => {
               <Checkbox
                 id="uppercase"
                 checked={includeUpperCase}
-                onCheckedChange={setIncludeUpperCase}
+                onCheckedChange={(checked) => setIncludeUpperCase(checked === true)}
               />
               <label htmlFor="uppercase" className="text-sm">
                 Uppercase Letters (A-Z)
@@ -131,7 +131,7 @@ const PasswordGenerator: React.FC = () => {
               <Checkbox
                 id="lowercase"
                 checked={includeLowerCase}
-                onCheckedChange={setIncludeLowerCase}
+                onCheckedChange={(checked) => setIncludeLowerCase(checked === true)}
               />
               <label htmlFor="lowercase" className="text-sm">
                 Lowercase Letters (a-z)
@@ -141,7 +141,7 @@ const PasswordGenerator: React.FC = () => {
               <Checkbox
                 id="numbers"
                 checked={includeNumbers}
-                onCheckedChange={setIncludeNumbers}
+                onCheckedChange={(checked) => setIncludeNumbers(checked === true)}
               />
               <label htmlFor="numbers" className="text-sm">
                 Numbers (0-9)
@@ -151,7 +151,7 @@ const PasswordGenerator: React.FC = () => {
               <Checkbox
                 id="symbols"
                 checked={includeSymbols}
-                onCheckedChange={setIncludeSymbols}
+                onCheckedChange={(checked) => setIncludeSymbols(checked === true)}
               />
               <label htmlFor="symbols" className="text-sm">
                 Symbols (!@#$%^&*)
