@@ -79,7 +79,11 @@ interface FormBuilderData {
   createdAt: string;
 }
 
-const FormBuilder: React.FC = () => {
+interface FormBuilderProps {
+  websiteId?: string;
+}
+
+const FormBuilder: React.FC<FormBuilderProps> = ({ websiteId }) => {
   const [forms, setForms] = useState<FormBuilderData[]>([]);
   const [selectedForm, setSelectedForm] = useState<FormBuilderData | null>(null);
   const [isLoading, setIsLoading] = useState(true);

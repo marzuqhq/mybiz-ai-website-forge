@@ -271,41 +271,91 @@ class UniversalSDK {
   }
 
   private async saveCollection(collection: string, items: any[]): Promise<void> {
+    const maxRetries = 3;
+    let lastError;
+
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        const url = `https://api.github.com/repos/${this.owner}/${this.repo}/contents/${this.basePath}/${collection}.json`;
+        
+        // Get current file SHA with retry logic
+        const currentResponse = await fetch(`${url}?ref=${this.branch}&cachebust=${Date.now()}`, {
+          headers: { 
+            Authorization: `token ${this.token}`,
+            'Cache-Control': 'no-cache'
+          }
+        });
+
+        let sha: string | undefined;
+        if (currentResponse.ok) {
+          const currentData = await currentResponse.json();
+          sha = currentData.sha;
+        }
+
+        // Handle Unicode characters properly
+        const jsonString = JSON.stringify(items, null, 2);
+        const base64Content = this.safeBase64Encode(jsonString);
+
+        const response = await fetch(url, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `token ${this.token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            message: `Update ${collection} collection - ${new Date().toISOString()}`,
+            content: base64Content,
+            branch: this.branch,
+            ...(sha && { sha }),
+          }),
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          const errorData = JSON.parse(errorText);
+          
+          // Handle SHA mismatch specifically
+          if (response.status === 409 && errorData.message?.includes('does not match')) {
+            console.warn(`SHA conflict on attempt ${attempt + 1}, retrying...`);
+            if (attempt < maxRetries - 1) {
+              await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
+              continue;
+            }
+          }
+          
+          throw new Error(`HTTP ${response.status}: ${errorText}`);
+        }
+
+        // Success, update cache
+        const cacheKey = this.getCacheKey(collection);
+        this.setCache(cacheKey, items);
+        return;
+
+      } catch (error: any) {
+        lastError = error;
+        console.error(`Error saving ${collection} (attempt ${attempt + 1}):`, error.message);
+        
+        if (attempt < maxRetries - 1) {
+          await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
+        }
+      }
+    }
+
+    console.error(`Failed to save ${collection} after ${maxRetries} attempts`);
+    throw lastError;
+  }
+
+  private safeBase64Encode(str: string): string {
     try {
-      const url = `https://api.github.com/repos/${this.owner}/${this.repo}/contents/${this.basePath}/${collection}.json`;
-      
-      // Get current file to get SHA
-      const currentResponse = await fetch(`${url}?ref=${this.branch}`, {
-        headers: { Authorization: `token ${this.token}` }
-      });
-
-      let sha: string | undefined;
-      if (currentResponse.ok) {
-        const currentData = await currentResponse.json();
-        sha = currentData.sha;
-      }
-
-      const response = await fetch(url, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `token ${this.token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          message: `Update ${collection} collection`,
-          content: btoa(JSON.stringify(items, null, 2)),
-          branch: this.branch,
-          ...(sha && { sha }),
-        }),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`HTTP ${response.status}: ${errorText}`);
-      }
+      // Handle Unicode characters by first encoding to UTF-8
+      const utf8Bytes = new TextEncoder().encode(str);
+      const binaryString = Array.from(utf8Bytes, byte => String.fromCharCode(byte)).join('');
+      return btoa(binaryString);
     } catch (error) {
-      console.error(`Error saving ${collection}:`, error);
-      throw error;
+      console.error('Base64 encoding failed:', error);
+      // Fallback: replace problematic characters
+      const sanitized = str.replace(/[^\x00-\x7F]/g, '?');
+      return btoa(sanitized);
     }
   }
 

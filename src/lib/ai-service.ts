@@ -15,10 +15,15 @@ class AIService {
 
   constructor(config: Partial<AIConfig> = {}) {
     this.config = {
-      apiKey: config.apiKey || import.meta.env.VITE_OPENAI_API_KEY || 'demo-key',
+      apiKey: config.apiKey || import.meta.env.VITE_OPENAI_API_KEY || '',
       baseUrl: config.baseUrl || 'https://api.openai.com/v1',
-      model: config.model || 'gpt-4',
+      model: config.model || 'gpt-4o-mini',
     };
+    
+    if (!this.config.apiKey) {
+      console.warn('⚠️ No OpenAI API key provided. AI features will use demo responses.');
+      console.warn('Add VITE_OPENAI_API_KEY to your environment variables for full AI functionality.');
+    }
   }
 
   async generateResponse(
@@ -92,7 +97,7 @@ Always be helpful, informative, and focused on the user's needs. If you don't kn
   }
 
   private async callAI(messages: AIMessage[]): Promise<string> {
-    if (this.config.apiKey === 'demo-key') {
+    if (!this.config.apiKey) {
       return this.generateIntelligentResponse(messages);
     }
 

@@ -262,7 +262,7 @@ const sdkConfig: UniversalSDKConfig = {
       },
     },
     products: {
-      required: ['websiteId', 'name', 'price'],
+      required: ['websiteId', 'name'],
       types: {
         websiteId: 'string',
         name: 'string',
@@ -279,8 +279,9 @@ const sdkConfig: UniversalSDKConfig = {
         specifications: 'object',
         slug: 'string',
       },
-      defaults: {
+        defaults: {
         status: 'active',
+        price: 0,
         inventory: 0,
         images: [],
         features: [],

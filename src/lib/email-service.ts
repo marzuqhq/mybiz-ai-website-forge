@@ -38,13 +38,17 @@ class EmailService {
       port: parseInt(import.meta.env.VITE_SMTP_PORT || '587'),
       secure: false, // true for 465, false for other ports
       auth: {
-        user: import.meta.env.VITE_SMTP_USER || 'demo@example.com',
-        pass: import.meta.env.VITE_SMTP_PASS || 'demo-password',
+        user: import.meta.env.VITE_SMTP_USER || '',
+        pass: import.meta.env.VITE_SMTP_PASS || '',
       },
     };
 
     if (this.isDemo) {
-      console.warn('Email service running in demo mode. Set VITE_SMTP_USER and VITE_SMTP_PASS for real email sending.');
+      console.warn('📧 Email service running in demo mode.');
+      console.warn('Set VITE_SMTP_USER and VITE_SMTP_PASS environment variables for real email sending.');
+      console.warn('For Gmail: Use your email and an App Password (not your regular password).');
+    } else {
+      console.log('📧 Email service configured for real sending via SMTP.');
     }
   }
 
