@@ -76,8 +76,8 @@ const BlogManager: React.FC<BlogManagerProps> = ({ websiteId }) => {
       const postData = {
         websiteId,
         title: formData.title,
+        content: formData.content || 'Default content', // Fix: Ensure content is never empty
         slug: formData.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''),
-        markdownBody: formData.content,
         excerpt: formData.excerpt || formData.content.substring(0, 200) + '...',
         tags: formData.tags.split(',').map(tag => tag.trim()).filter(Boolean),
         publishedAt: new Date().toISOString(),

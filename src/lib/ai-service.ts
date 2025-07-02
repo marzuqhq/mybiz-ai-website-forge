@@ -2,6 +2,9 @@ interface AIConfig {
   apiKey: string;
   baseUrl: string;
   model: string;
+  fallbackApiKey?: string;
+  fallbackBaseUrl?: string;
+  fallbackModel?: string;
 }
 
 interface AIMessage {
@@ -15,14 +18,22 @@ class AIService {
 
   constructor(config: Partial<AIConfig> = {}) {
     this.config = {
-      apiKey: config.apiKey || import.meta.env.VITE_OPENAI_API_KEY || '',
-      baseUrl: config.baseUrl || 'https://api.openai.com/v1',
-      model: config.model || 'gpt-4o-mini',
+      // Primary: Chutes AI
+      apiKey: config.apiKey || import.meta.env.VITE_CHUTES_API_TOKEN || '',
+      baseUrl: config.baseUrl || 'https://llm.chutes.ai/v1',
+      model: config.model || 'deepseek-ai/DeepSeek-V3-0324',
+      
+      // Fallback: Gemini
+      fallbackApiKey: config.fallbackApiKey || import.meta.env.VITE_GEMINI_API_KEY || '',
+      fallbackBaseUrl: config.fallbackBaseUrl || 'https://generativelanguage.googleapis.com/v1beta',
+      fallbackModel: config.fallbackModel || 'gemini-2.0-flash-exp',
     };
     
-    if (!this.config.apiKey) {
-      console.warn('⚠️ No OpenAI API key provided. AI features will use demo responses.');
-      console.warn('Add VITE_OPENAI_API_KEY to your environment variables for full AI functionality.');
+    if (!this.config.apiKey && !this.config.fallbackApiKey) {
+      console.warn('⚠️ No AI API keys provided. AI features will use demo responses.');
+      console.warn('Add VITE_CHUTES_API_TOKEN and VITE_GEMINI_API_KEY to your environment variables for full AI functionality.');
+    } else {
+      console.log('🤖 AI Service initialized with Chutes AI (primary) and Gemini (fallback)');
     }
   }
 
@@ -97,35 +108,85 @@ Always be helpful, informative, and focused on the user's needs. If you don't kn
   }
 
   private async callAI(messages: AIMessage[]): Promise<string> {
-    if (!this.config.apiKey) {
+    if (!this.config.apiKey && !this.config.fallbackApiKey) {
       return this.generateIntelligentResponse(messages);
     }
 
-    try {
-      const response = await fetch(`${this.config.baseUrl}/chat/completions`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${this.config.apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: this.config.model,
-          messages,
-          max_tokens: 1000,
-          temperature: 0.7,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`AI API error: ${response.status}`);
+    // Try Chutes AI first
+    if (this.config.apiKey) {
+      try {
+        const response = await this.callChutesAI(messages);
+        return response;
+      } catch (error) {
+        console.warn('Chutes AI failed, trying Gemini fallback...', error);
       }
-
-      const data = await response.json();
-      return data.choices[0]?.message?.content || "I couldn't generate a response.";
-    } catch (error) {
-      console.error('AI API call failed:', error);
-      return this.generateIntelligentResponse(messages);
     }
+
+    // Fallback to Gemini
+    if (this.config.fallbackApiKey) {
+      try {
+        const response = await this.callGeminiAI(messages);
+        return response;
+      } catch (error) {
+        console.error('Both AI providers failed:', error);
+      }
+    }
+
+    // Ultimate fallback to intelligent responses
+    return this.generateIntelligentResponse(messages);
+  }
+
+  private async callChutesAI(messages: AIMessage[]): Promise<string> {
+    const response = await fetch(`${this.config.baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${this.config.apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: this.config.model,
+        messages,
+        max_tokens: 1000,
+        temperature: 0.7,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Chutes AI error: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return data.choices[0]?.message?.content || "I couldn't generate a response.";
+  }
+
+  private async callGeminiAI(messages: AIMessage[]): Promise<string> {
+    // Convert messages to Gemini format
+    const prompt = messages.map(msg => `${msg.role}: ${msg.content}`).join('\n\n');
+    
+    const response = await fetch(`${this.config.fallbackBaseUrl}/models/${this.config.fallbackModel}:generateContent?key=${this.config.fallbackApiKey}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{
+            text: prompt
+          }]
+        }],
+        generationConfig: {
+          maxOutputTokens: 1000,
+          temperature: 0.7,
+        }
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Gemini AI error: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return data.candidates[0]?.content?.parts[0]?.text || "I couldn't generate a response.";
   }
 
   private generateIntelligentResponse(messages: AIMessage[]): string {
@@ -487,5 +548,6 @@ Format as JSON with: title, shortDescription, description, metaDescription, tags
   }
 }
 
-export default AIService;
+export const aiService = new AIService();
+export default aiService;
 export type { AIConfig, AIMessage };

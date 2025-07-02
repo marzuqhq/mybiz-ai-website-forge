@@ -1,12 +1,18 @@
 
 import { sdk } from './sdk';
 
-// Simple AI generation function for demo purposes
-// In production, this would connect to your preferred AI service
+// AI generation using our unified AI service
+import { aiService } from './ai-service';
+
 async function generateWithAI(prompt: string): Promise<string> {
-  // This is a placeholder implementation
-  // Replace with your actual AI service integration (OpenAI, Anthropic, etc.)
-  console.log('AI Prompt:', prompt);
+  try {
+    const response = await aiService.generateResponse(prompt);
+    console.log('AI Response generated:', response.substring(0, 100) + '...');
+    return response;
+  } catch (error) {
+    console.error('AI generation failed:', error);
+    return "AI generation failed: " + error;
+  }
   
   // For demo purposes, return structured responses based on the prompt
   if (prompt.includes('blog post')) {

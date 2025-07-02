@@ -15,6 +15,11 @@ import WebsiteEditor from "./pages/WebsiteEditor";
 import CMSManager from "./pages/CMSManager";
 import AdminDashboard from "./pages/AdminDashboard";
 import NotFound from "./pages/NotFound";
+import PublicFormView from "./components/public/PublicFormView";
+import PublicBlogArchive from "./components/public/PublicBlogArchive";
+import PublicBlogPost from "./components/public/PublicBlogPost";
+import PublicProductArchive from "./components/public/PublicProductArchive";
+import PublicFAQArchive from "./components/public/PublicFAQArchive";
 
 // Guest/Marketing Pages
 import Features from "./pages/guest/Features";
@@ -53,6 +58,15 @@ const App = () => (
               {/* Public website routes - these come FIRST for priority */}
               <Route path="/:slug" element={<PublicWebsiteRouter />} />
               <Route path="/:slug/:pageSlug" element={<PublicWebsiteRouter />} />
+              
+              {/* Public Form Routes */}
+              <Route path="/forms/:slug" element={<PublicFormView />} />
+              
+              {/* Public Archive Routes */}
+              <Route path="/:websiteSlug/blog" element={<PublicBlogArchive />} />
+              <Route path="/:websiteSlug/blog/:postSlug" element={<PublicBlogPost />} />
+              <Route path="/:websiteSlug/products" element={<PublicProductArchive />} />
+              <Route path="/:websiteSlug/faq" element={<PublicFAQArchive />} />
               
               {/* App routes */}
               <Route path="/" element={
