@@ -1,6 +1,6 @@
 
 import sdk from './sdk';
-import AIService from './ai-service';
+import { aiService } from './ai-service';
 
 interface ChatMessage {
   id: string;
@@ -37,11 +37,11 @@ interface ChatMemory {
 class AIChatService {
   private memory: Map<string, ChatMemory> = new Map();
   private conversationId: string;
-  private aiService: AIService;
+  private aiService: typeof aiService;
 
   constructor(websiteId: string, userId?: string) {
     this.conversationId = `${websiteId}-${userId || 'anonymous'}-${Date.now()}`;
-    this.aiService = new AIService();
+    this.aiService = aiService;
   }
 
   async initializeChat(websiteId: string, userId?: string): Promise<ChatMemory> {
