@@ -1,4 +1,3 @@
-
 // Universal SDK for GitHub-based database operations
 import { Octokit } from '@octokit/rest';
 
@@ -68,6 +67,8 @@ class UniversalSDK {
   private config: UniversalSDKConfig;
   private cache: Map<string, { data: any; timestamp: number }> = new Map();
   private readonly CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+  private sessions: Map<string, Session> = new Map();
+  private users: Map<string, User> = new Map();
 
   constructor(config: UniversalSDKConfig) {
     this.config = {
@@ -166,6 +167,18 @@ class UniversalSDK {
       console.error(`Error loading ${collection}:`, error.message);
       return [];
     }
+  }
+
+  // Get single item by ID
+  async getItem(collection: string, id: string): Promise<any | null> {
+    const data = await this.get(collection);
+    return data.find(item => item.id === id) || null;
+  }
+
+  // Check if slug is available
+  async isSlugAvailable(slug: string, collection: string = 'websites'): Promise<boolean> {
+    const data = await this.get(collection);
+    return !data.some(item => item.slug === slug);
   }
 
   // Enhanced save collection with SHA conflict resolution
@@ -340,6 +353,110 @@ class UniversalSDK {
     }
 
     return slug;
+  }
+
+  // Authentication methods
+  async login(email: string, password: string): Promise<string | { otpRequired: boolean }> {
+    const users = await this.get('users');
+    const user = users.find((u: User) => u.email === email);
+    
+    if (!user || user.password !== password) {
+      throw new Error('Invalid credentials');
+    }
+
+    // Generate session token
+    const token = this.generateId();
+    const session: Session = {
+      id: this.generateId(),
+      userId: user.id,
+      token,
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      metadata: {}
+    };
+
+    this.sessions.set(token, { ...session, user });
+    return token;
+  }
+
+  async register(email: string, password: string, profile: any = {}): Promise<User> {
+    const users = await this.get('users');
+    const existingUser = users.find((u: User) => u.email === email);
+    
+    if (existingUser) {
+      throw new Error('User already exists');
+    }
+
+    const newUser: User = {
+      id: this.generateId(),
+      email,
+      password,
+      verified: true,
+      roles: profile.roles || ['user'],
+      permissions: profile.permissions || ['read', 'write'],
+      plan: profile.plan || 'free',
+      authMethod: 'email',
+      createdAt: new Date().toISOString(),
+      profile: profile,
+      subdomain: profile.subdomain || ''
+    };
+
+    await this.insert('users', newUser);
+    return newUser;
+  }
+
+  getSession(token: string): (Session & { user: User }) | null {
+    return this.sessions.get(token) || null;
+  }
+
+  destroySession(token: string): void {
+    this.sessions.delete(token);
+  }
+
+  async verifyLoginOTP(email: string, otp: string): Promise<string> {
+    // For now, just simulate OTP verification
+    const users = await this.get('users');
+    const user = users.find((u: User) => u.email === email);
+    
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    // Generate session token
+    const token = this.generateId();
+    const session: Session = {
+      id: this.generateId(),
+      userId: user.id,
+      token,
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      metadata: {}
+    };
+
+    this.sessions.set(token, { ...session, user });
+    return token;
+  }
+
+  async requestPasswordReset(email: string): Promise<void> {
+    const users = await this.get('users');
+    const user = users.find((u: User) => u.email === email);
+    
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    // In a real implementation, this would send an email
+    console.log(`Password reset requested for ${email}`);
+  }
+
+  async resetPassword(email: string, otp: string, newPassword: string): Promise<void> {
+    const users = await this.get('users');
+    const user = users.find((u: User) => u.email === email);
+    
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    // Update password
+    await this.update('users', user.id, { password: newPassword });
   }
 
   // Media upload to Cloudinary
