@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -54,7 +53,7 @@ const CRMManager: React.FC<CRMManagerProps> = ({ websiteId, aiController }) => {
   const loadCustomers = async () => {
     try {
       setIsLoading(true);
-      const allCustomers = await sdk.get<Customer>('customers');
+      const allCustomers = await sdk.get('customers');
       const websiteCustomers = allCustomers.filter(customer => customer.websiteId === websiteId);
       setCustomers(websiteCustomers);
     } catch (error: any) {

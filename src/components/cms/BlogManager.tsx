@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -48,7 +47,7 @@ const BlogManager: React.FC<BlogManagerProps> = ({ websiteId }) => {
   const loadPosts = async () => {
     try {
       setIsLoading(true);
-      const allPosts = await sdk.get<BlogPost>('posts');
+      const allPosts = await sdk.get('posts');
       const websitePosts = allPosts.filter(post => post.websiteId === websiteId);
       setPosts(websitePosts);
     } catch (error: any) {

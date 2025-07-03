@@ -1,3 +1,4 @@
+
 // Universal SDK for GitHub-based database operations
 import { Octokit } from '@octokit/rest';
 
@@ -52,6 +53,10 @@ export interface Session {
   metadata: Record<string, any>;
 }
 
+export interface SessionWithUser extends Session {
+  user: User;
+}
+
 export interface CloudinaryUploadResult {
   public_id: string;
   secure_url: string;
@@ -67,8 +72,7 @@ class UniversalSDK {
   private config: UniversalSDKConfig;
   private cache: Map<string, { data: any; timestamp: number }> = new Map();
   private readonly CACHE_TTL = 5 * 60 * 1000; // 5 minutes
-  private sessions: Map<string, Session> = new Map();
-  private users: Map<string, User> = new Map();
+  private sessions: Map<string, SessionWithUser> = new Map();
 
   constructor(config: UniversalSDKConfig) {
     this.config = {
@@ -127,7 +131,6 @@ class UniversalSDK {
 
   // Get collection with proper error handling and caching
   async get(collection: string): Promise<any[]> {
-    const cacheKey = `${collection}_${Date.now()}`;
     const cached = this.cache.get(collection);
     
     if (cached && (Date.now() - cached.timestamp) < this.CACHE_TTL) {
@@ -142,10 +145,6 @@ class UniversalSDK {
         repo: this.config.repo,
         path: filePath,
         ref: this.config.branch,
-        headers: {
-          'Cache-Control': 'no-cache',
-          'If-None-Match': '',
-        }
       });
 
       if ('content' in response.data) {
@@ -187,46 +186,48 @@ class UniversalSDK {
     const content = JSON.stringify(data, null, 2);
     const encodedContent = this.safeBase64Encode(content);
 
-    try {
-      // Get current file to get SHA
-      let currentSha: string | undefined;
+    return this.withRetryLogic(async () => {
       try {
-        const currentFile = await this.octokit.rest.repos.getContent({
+        // Get current file to get SHA
+        let currentSha: string | undefined;
+        try {
+          const currentFile = await this.octokit.rest.repos.getContent({
+            owner: this.config.owner,
+            repo: this.config.repo,
+            path: filePath,
+            ref: this.config.branch,
+          });
+
+          if ('sha' in currentFile.data) {
+            currentSha = currentFile.data.sha;
+          }
+        } catch (error: any) {
+          if (error.status !== 404) {
+            throw error;
+          }
+          // File doesn't exist, we'll create it
+        }
+
+        // Save with current SHA
+        await this.octokit.rest.repos.createOrUpdateFileContents({
           owner: this.config.owner,
           repo: this.config.repo,
           path: filePath,
-          ref: this.config.branch,
+          message: `Update ${collection}`,
+          content: encodedContent,
+          branch: this.config.branch,
+          ...(currentSha && { sha: currentSha }),
         });
 
-        if ('sha' in currentFile.data) {
-          currentSha = currentFile.data.sha;
-        }
+        // Clear cache after successful save
+        this.cache.delete(collection);
+        
+        console.log(`✅ Successfully saved ${collection}`);
       } catch (error: any) {
-        if (error.status !== 404) {
-          throw error;
-        }
-        // File doesn't exist, we'll create it
+        console.error(`Error saving ${collection}:`, error);
+        throw error;
       }
-
-      // Save with current SHA
-      await this.octokit.rest.repos.createOrUpdateFileContents({
-        owner: this.config.owner,
-        repo: this.config.repo,
-        path: filePath,
-        message: `Update ${collection}`,
-        content: encodedContent,
-        branch: this.config.branch,
-        ...(currentSha && { sha: currentSha }),
-      });
-
-      // Clear cache after successful save
-      this.cache.delete(collection);
-      
-      console.log(`✅ Successfully saved ${collection}`);
-    } catch (error: any) {
-      console.error(`Error saving ${collection}:`, error);
-      throw error;
-    }
+    }, 5, 2000);
   }
 
   // Schema validation
@@ -271,7 +272,7 @@ class UniversalSDK {
       await this.saveCollection(collection, currentData);
       
       return data;
-    });
+    }, 5, 2000);
   }
 
   // Enhanced update with conflict resolution
@@ -298,7 +299,7 @@ class UniversalSDK {
       await this.saveCollection(collection, currentData);
       
       return updatedItem;
-    });
+    }, 5, 2000);
   }
 
   // Delete with conflict resolution
@@ -319,7 +320,7 @@ class UniversalSDK {
       await this.saveCollection(collection, currentData);
       
       return true;
-    });
+    }, 5, 2000);
   }
 
   // Find by criteria
@@ -366,15 +367,16 @@ class UniversalSDK {
 
     // Generate session token
     const token = this.generateId();
-    const session: Session = {
+    const session: SessionWithUser = {
       id: this.generateId(),
       userId: user.id,
       token,
       expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-      metadata: {}
+      metadata: {},
+      user
     };
 
-    this.sessions.set(token, { ...session, user });
+    this.sessions.set(token, session);
     return token;
   }
 
@@ -404,7 +406,7 @@ class UniversalSDK {
     return newUser;
   }
 
-  getSession(token: string): (Session & { user: User }) | null {
+  getSession(token: string): SessionWithUser | null {
     return this.sessions.get(token) || null;
   }
 
@@ -423,15 +425,16 @@ class UniversalSDK {
 
     // Generate session token
     const token = this.generateId();
-    const session: Session = {
+    const session: SessionWithUser = {
       id: this.generateId(),
       userId: user.id,
       token,
       expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-      metadata: {}
+      metadata: {},
+      user
     };
 
-    this.sessions.set(token, { ...session, user });
+    this.sessions.set(token, session);
     return token;
   }
 

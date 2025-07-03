@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -44,7 +43,7 @@ const FAQManager: React.FC<FAQManagerProps> = ({ websiteId, businessInfo }) => {
   const loadFAQs = async () => {
     try {
       setIsLoading(true);
-      const allFaqs = await sdk.get<FAQ>('faqs');
+      const allFaqs = await sdk.get('faqs');
       const websiteFaqs = allFaqs.filter(faq => faq.websiteId === websiteId);
       setFaqs(websiteFaqs);
     } catch (error: any) {
