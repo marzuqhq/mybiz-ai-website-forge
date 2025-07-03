@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -12,7 +11,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { Brain, Sparkles, Wand2, ArrowRight, Plus, X } from 'lucide-react';
 import sdk from '@/lib/sdk';
-import { aiService } from '@/lib/ai';
+import { aiService } from '@/lib/ai-service';
 
 const CreateWebsiteForm: React.FC = () => {
   const { user } = useAuth();
@@ -78,6 +77,14 @@ const CreateWebsiteForm: React.FC = () => {
     }
   };
 
+  const generateSlug = (name: string): string => {
+    return name
+      .toLowerCase()
+      .replace(/[^a-z0-9-]/g, '-')
+      .replace(/--+/g, '-')
+      .replace(/^-+|-+$/g, '');
+  };
+
   const handleGenerate = async () => {
     if (!user?.id) {
       toast({
@@ -99,56 +106,155 @@ const CreateWebsiteForm: React.FC = () => {
 
     try {
       setIsGenerating(true);
+      console.log('🚀 Starting website generation process...');
 
-      // Generate website using AI
+      // Generate unique slug
+      const baseSlug = generateSlug(formData.businessName);
+      const uniqueSlug = await sdk.generateUniqueSlug(baseSlug);
+      console.log('📝 Generated unique slug:', uniqueSlug);
+
+      // Generate website structure using AI
+      console.log('🤖 Generating website structure with AI...');
       const aiResult = await aiService.generateWebsite(formData);
+      console.log('✅ AI generation complete:', aiResult);
 
-      // Create website record
-      const website = await sdk.insert('websites', {
+      // Create website record with all required fields
+      console.log('💾 Creating website record...');
+      const websiteData = {
         userId: user.id,
         name: formData.businessName,
+        slug: uniqueSlug,
+        publicUrl: `${window.location.origin}/${uniqueSlug}`,
         businessInfo: formData,
-        theme: aiResult.theme,
-        seoConfig: aiResult.seoConfig,
+        theme: aiResult.theme || {
+          primaryColor: '#6366F1',
+          secondaryColor: '#8B5CF6',
+          accentColor: '#FF6B6B',
+          fontFamily: 'Inter',
+          fontHeading: 'Inter',
+          borderRadius: 'medium',
+          spacing: 'comfortable',
+        },
+        seoConfig: aiResult.seoConfig || {
+          metaTitle: `${formData.businessName} - Professional ${formData.businessType}`,
+          metaDescription: `${formData.businessName} offers professional ${formData.businessType.toLowerCase()} services.`,
+          keywords: [formData.businessType.toLowerCase(), ...formData.services.map(s => s.toLowerCase())],
+          ogImage: '',
+          sitemap: true,
+          robotsTxt: 'index,follow',
+        },
         status: 'draft'
-      });
+      };
 
-      // Create pages and blocks
-      for (const pageData of aiResult.pages) {
-        const page = await sdk.insert('pages', {
-          websiteId: website.id,
-          title: pageData.title,
-          slug: pageData.slug,
-          type: pageData.type,
-          seoMeta: {
-            title: pageData.title,
-            description: aiResult.seoConfig.metaDescription,
-            keywords: aiResult.seoConfig.keywords
+      const website = await sdk.insert('websites', websiteData);
+      console.log('✅ Website created:', website.id);
+
+      // Create pages with proper error handling and delays
+      const pages = aiResult.pages || [
+        {
+          title: 'Home',
+          slug: 'home',
+          type: 'page',
+          blocks: [
+            {
+              type: 'hero',
+              content: {
+                headline: `Welcome to ${formData.businessName}`,
+                subheadline: `Professional ${formData.businessType} services`,
+                ctaText: 'Get Started',
+              }
+            }
+          ]
+        }
+      ];
+
+      console.log('📄 Creating pages and blocks...');
+      
+      for (let i = 0; i < pages.length; i++) {
+        const pageData = pages[i];
+        console.log(`Creating page ${i + 1}/${pages.length}: ${pageData.title}`);
+        
+        try {
+          // Add delay between operations to prevent conflicts
+          if (i > 0) {
+            await new Promise(resolve => setTimeout(resolve, 1000));
           }
-        });
 
-        // Create blocks for each page
-        for (let i = 0; i < pageData.blocks.length; i++) {
-          await sdk.insert('blocks', {
-            pageId: page.id,
-            type: pageData.blocks[i].type,
-            content: pageData.blocks[i].content,
-            order: i,
-            aiGenerated: true,
-            editable: true
+          const pageSlug = pageData.slug || generateSlug(pageData.title);
+          const page = await sdk.insert('pages', {
+            websiteId: website.id,
+            title: pageData.title,
+            slug: pageSlug,
+            type: pageData.type || 'page',
+            seoMeta: {
+              title: pageData.title,
+              description: aiResult.seoConfig?.metaDescription || `${pageData.title} - ${formData.businessName}`,
+              keywords: aiResult.seoConfig?.keywords || []
+            }
           });
+
+          console.log(`✅ Page created: ${page.title} (${page.id})`);
+
+          // Create blocks for each page with delays
+          if (pageData.blocks && pageData.blocks.length > 0) {
+            for (let j = 0; j < pageData.blocks.length; j++) {
+              const blockData = pageData.blocks[j];
+              
+              try {
+                // Small delay between blocks
+                if (j > 0) {
+                  await new Promise(resolve => setTimeout(resolve, 500));
+                }
+
+                await sdk.insert('blocks', {
+                  pageId: page.id,
+                  type: blockData.type || 'content',
+                  content: blockData.content || {},
+                  order: j,
+                  aiGenerated: true,
+                  editable: true
+                });
+
+                console.log(`✅ Block ${j + 1} created for page ${page.title}`);
+              } catch (blockError) {
+                console.error(`Failed to create block ${j + 1} for page ${page.title}:`, blockError);
+                // Continue with other blocks instead of failing completely
+              }
+            }
+          }
+        } catch (pageError) {
+          console.error(`Failed to create page ${pageData.title}:`, pageError);
+          // Continue with other pages instead of failing completely
         }
       }
 
-      // Generate FAQs
-      const faqs = await aiService.generateFAQs(formData);
-      for (const faq of faqs) {
-        await sdk.insert('faqs', {
-          websiteId: website.id,
-          question: faq.question,
-          answer: faq.answer,
-          aiGenerated: true
-        });
+      // Generate FAQs with error handling
+      try {
+        console.log('❓ Generating FAQs...');
+        const faqs = await aiService.generateFAQs(formData);
+        
+        for (let i = 0; i < faqs.length; i++) {
+          const faq = faqs[i];
+          
+          try {
+            // Small delay between FAQ insertions
+            if (i > 0) {
+              await new Promise(resolve => setTimeout(resolve, 300));
+            }
+
+            await sdk.insert('faqs', {
+              websiteId: website.id,
+              question: faq.question,
+              answer: faq.answer,
+              aiGenerated: true
+            });
+          } catch (faqError) {
+            console.error(`Failed to create FAQ ${i + 1}:`, faqError);
+          }
+        }
+        console.log('✅ FAQs generated successfully');
+      } catch (faqError) {
+        console.error('Failed to generate FAQs:', faqError);
       }
 
       toast({

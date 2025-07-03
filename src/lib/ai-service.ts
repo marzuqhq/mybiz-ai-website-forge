@@ -29,12 +29,12 @@ class AIService {
       fallbackModel: config.fallbackModel || 'gemini-2.0-flash-exp',
     };
     
-    if (!this.config.apiKey && !this.config.fallbackApiKey) {
-      console.warn('⚠️ No AI API keys provided. AI features will use demo responses.');
-      console.warn('Add VITE_CHUTES_API_TOKEN and VITE_GEMINI_API_KEY to your environment variables for full AI functionality.');
-    } else {
-      console.log('🤖 AI Service initialized with Chutes AI (primary) and Gemini (fallback)');
-    }
+    console.log('🤖 AI Service Configuration:', {
+      hasChutesKey: !!this.config.apiKey && this.config.apiKey !== 'demo-token',
+      hasGeminiKey: !!this.config.fallbackApiKey,
+      chutesModel: this.config.model,
+      geminiModel: this.config.fallbackModel
+    });
   }
 
   async generateResponse(
@@ -60,7 +60,7 @@ class AIService {
         content: prompt,
       });
 
-      // Generate response
+      // Generate response using actual AI
       const response = await this.callAI(history);
       
       // Add AI response to history
@@ -108,31 +108,41 @@ Always be helpful, informative, and focused on the user's needs. If you don't kn
   }
 
   private async callAI(messages: AIMessage[]): Promise<string> {
-    if (!this.config.apiKey && !this.config.fallbackApiKey) {
+    // Check if we have valid API keys
+    const hasValidChutesKey = this.config.apiKey && this.config.apiKey !== 'demo-token' && this.config.apiKey !== '';
+    const hasValidGeminiKey = this.config.fallbackApiKey && this.config.fallbackApiKey !== '';
+
+    if (!hasValidChutesKey && !hasValidGeminiKey) {
+      console.warn('⚠️ No valid AI API keys configured - using intelligent fallback responses');
       return this.generateIntelligentResponse(messages);
     }
 
-    // Try Chutes AI first
-    if (this.config.apiKey) {
+    // Try Chutes AI first if we have a valid key
+    if (hasValidChutesKey) {
       try {
+        console.log('🔄 Calling Chutes AI...');
         const response = await this.callChutesAI(messages);
+        console.log('✅ Chutes AI response received');
         return response;
       } catch (error) {
-        console.warn('Chutes AI failed, trying Gemini fallback...', error);
+        console.warn('⚠️ Chutes AI failed, trying Gemini fallback...', error);
       }
     }
 
-    // Fallback to Gemini
-    if (this.config.fallbackApiKey) {
+    // Fallback to Gemini if we have a valid key
+    if (hasValidGeminiKey) {
       try {
+        console.log('🔄 Calling Gemini AI...');
         const response = await this.callGeminiAI(messages);
+        console.log('✅ Gemini AI response received');
         return response;
       } catch (error) {
-        console.error('Both AI providers failed:', error);
+        console.error('❌ Both AI providers failed:', error);
       }
     }
 
     // Ultimate fallback to intelligent responses
+    console.warn('⚠️ All AI providers failed - using intelligent fallback');
     return this.generateIntelligentResponse(messages);
   }
 
@@ -152,11 +162,18 @@ Always be helpful, informative, and focused on the user's needs. If you don't kn
     });
 
     if (!response.ok) {
-      throw new Error(`Chutes AI error: ${response.status} ${response.statusText}`);
+      const errorText = await response.text();
+      throw new Error(`Chutes AI error: ${response.status} ${response.statusText} - ${errorText}`);
     }
 
     const data = await response.json();
-    return data.choices[0]?.message?.content || "I couldn't generate a response.";
+    const content = data.choices?.[0]?.message?.content;
+    
+    if (!content) {
+      throw new Error('No content received from Chutes AI');
+    }
+    
+    return content;
   }
 
   private async callGeminiAI(messages: AIMessage[]): Promise<string> {
@@ -182,11 +199,18 @@ Always be helpful, informative, and focused on the user's needs. If you don't kn
     });
 
     if (!response.ok) {
-      throw new Error(`Gemini AI error: ${response.status} ${response.statusText}`);
+      const errorText = await response.text();
+      throw new Error(`Gemini AI error: ${response.status} ${response.statusText} - ${errorText}`);
     }
 
     const data = await response.json();
-    return data.candidates[0]?.content?.parts[0]?.text || "I couldn't generate a response.";
+    const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    
+    if (!content) {
+      throw new Error('No content received from Gemini AI');
+    }
+    
+    return content;
   }
 
   private generateIntelligentResponse(messages: AIMessage[]): string {
@@ -330,7 +354,7 @@ What would be most helpful for you right now?`;
   }
 
   private isGreeting(message: string): boolean {
-    const greetings = ['hello', 'hi', 'hey', 'good morning', 'good afternoon', 'good evening', 'greetings'];
+    const greetings = ['hello', 'hi', 'hey', 'good morning', 'good afternoon', 'good evening', 'greetings', 'salam', 'salaam'];
     return greetings.some(greeting => message.includes(greeting));
   }
 
@@ -354,7 +378,172 @@ What would be most helpful for you right now?`;
     return keywords.some(keyword => message.includes(keyword));
   }
 
-  // Generate content methods
+  async generateWebsite(businessInfo: any): Promise<any> {
+    try {
+      const prompt = `Generate a complete website structure for a ${businessInfo.businessType} business named "${businessInfo.businessName}".
+
+Business Details:
+- Type: ${businessInfo.businessType}
+- Target Audience: ${businessInfo.targetAudience}
+- Location: ${businessInfo.location}
+- Tone: ${businessInfo.tone}
+- Services: ${businessInfo.services.join(', ')}
+- Description: ${businessInfo.description}
+
+Generate:
+1. Website theme (colors, fonts, layout style)
+2. SEO configuration (title, description, keywords)
+3. Page structure with content blocks for each page
+4. At least 4-5 pages (Home, About, Services, Contact, etc.)
+
+Return as JSON with this structure:
+{
+  "theme": {
+    "primaryColor": "#color",
+    "secondaryColor": "#color", 
+    "accentColor": "#color",
+    "fontFamily": "font name",
+    "fontHeading": "heading font",
+    "borderRadius": "style",
+    "spacing": "comfortable"
+  },
+  "seoConfig": {
+    "metaTitle": "SEO title",
+    "metaDescription": "SEO description",
+    "keywords": ["keyword1", "keyword2"],
+    "ogImage": "",
+    "sitemap": true,
+    "robotsTxt": "index,follow"
+  },
+  "pages": [
+    {
+      "title": "Page Title",
+      "slug": "page-slug",
+      "type": "page",
+      "blocks": [
+        {
+          "type": "hero",
+          "content": {
+            "headline": "Main headline",
+            "subheadline": "Supporting text",
+            "ctaText": "Call to action",
+            "backgroundImage": ""
+          }
+        }
+      ]
+    }
+  ]
+}`;
+
+      const response = await this.generateResponse(prompt);
+      
+      try {
+        return JSON.parse(response);
+      } catch (parseError) {
+        console.warn('Failed to parse AI response as JSON, generating fallback structure');
+        return this.generateFallbackWebsiteStructure(businessInfo);
+      }
+    } catch (error) {
+      console.error('Website generation failed, using fallback:', error);
+      return this.generateFallbackWebsiteStructure(businessInfo);
+    }
+  }
+
+  private generateFallbackWebsiteStructure(businessInfo: any): any {
+    return {
+      theme: {
+        primaryColor: '#6366F1',
+        secondaryColor: '#8B5CF6',
+        accentColor: '#FF6B6B',
+        fontFamily: 'Inter',
+        fontHeading: 'Inter',
+        borderRadius: 'medium',
+        spacing: 'comfortable',
+      },
+      seoConfig: {
+        metaTitle: `${businessInfo.businessName} - Professional ${businessInfo.businessType}`,
+        metaDescription: `${businessInfo.businessName} offers professional ${businessInfo.businessType.toLowerCase()} services in ${businessInfo.location}. Contact us today!`,
+        keywords: [businessInfo.businessType.toLowerCase(), businessInfo.location.toLowerCase(), ...businessInfo.services.map((s: string) => s.toLowerCase())],
+        ogImage: '',
+        sitemap: true,
+        robotsTxt: 'index,follow',
+      },
+      pages: [
+        {
+          title: 'Home',
+          slug: 'home',
+          type: 'page',
+          blocks: [
+            {
+              type: 'hero',
+              content: {
+                headline: `Welcome to ${businessInfo.businessName}`,
+                subheadline: `Professional ${businessInfo.businessType} services for ${businessInfo.targetAudience} in ${businessInfo.location}`,
+                ctaText: 'Get Started Today',
+                backgroundImage: ''
+              }
+            },
+            {
+              type: 'features',
+              content: {
+                title: 'Our Services',
+                subtitle: 'What we offer',
+                features: businessInfo.services.map((service: string) => ({
+                  title: service,
+                  description: `Professional ${service.toLowerCase()} solutions tailored to your needs.`,
+                  icon: 'check'
+                }))
+              }
+            }
+          ]
+        },
+        {
+          title: 'About',
+          slug: 'about',
+          type: 'page',
+          blocks: [
+            {
+              type: 'content',
+              content: {
+                title: `About ${businessInfo.businessName}`,
+                content: `We are a professional ${businessInfo.businessType} company serving ${businessInfo.targetAudience} in ${businessInfo.location}. ${businessInfo.description || 'Our team is dedicated to providing exceptional service and results.'}`
+              }
+            }
+          ]
+        },
+        {
+          title: 'Services',
+          slug: 'services',
+          type: 'page',
+          blocks: [
+            {
+              type: 'content',
+              content: {
+                title: 'Our Services',
+                content: `We offer a comprehensive range of ${businessInfo.businessType.toLowerCase()} services including: ${businessInfo.services.join(', ')}.`
+              }
+            }
+          ]
+        },
+        {
+          title: 'Contact',
+          slug: 'contact',
+          type: 'page',
+          blocks: [
+            {
+              type: 'contact_form',
+              content: {
+                title: 'Get In Touch',
+                subtitle: 'Ready to get started? Contact us today!',
+                fields: ['name', 'email', 'phone', 'message']
+              }
+            }
+          ]
+        }
+      ]
+    };
+  }
+
   async generateBlogPost(topic: string, context: any = {}): Promise<any> {
     const prompt = `Write a comprehensive blog post about "${topic}" for ${context.businessName || 'our business'}.
 
@@ -378,7 +567,6 @@ Format as JSON with: title, content, excerpt, metaDescription, tags, readingTime
     try {
       return JSON.parse(response);
     } catch (error) {
-      // Fallback structured response
       return {
         title: `${topic}: A Comprehensive Guide`,
         content: `# ${topic}: A Comprehensive Guide\n\n${response}`,
@@ -426,8 +614,36 @@ Format as JSON with: title, shortDescription, description, metaDescription, tags
     question: string;
     answer: string;
   }>> {
-    // Generate common FAQs based on business type
-    const commonFAQs = [
+    const prompt = `Generate 8-10 frequently asked questions and answers for a ${businessInfo.businessType} business named "${businessInfo.businessName}".
+
+Business Details:
+- Services: ${businessInfo.services?.join(', ') || 'various services'}
+- Target Audience: ${businessInfo.targetAudience || 'clients'}
+- Location: ${businessInfo.location || 'our service area'}
+
+Include questions about:
+- Services offered
+- Pricing/costs
+- Contact information
+- Business hours
+- Service area
+- Process/how it works
+- Qualifications/experience
+
+Format as JSON array: [{"question": "...", "answer": "..."}]`;
+
+    try {
+      const response = await this.generateResponse(prompt);
+      const parsed = JSON.parse(response);
+      if (Array.isArray(parsed)) {
+        return parsed;
+      }
+    } catch (error) {
+      console.warn('Failed to generate AI FAQs, using fallback');
+    }
+
+    // Fallback FAQs
+    return [
       {
         question: `What services does ${businessInfo.businessName} offer?`,
         answer: `We specialize in ${businessInfo.services?.join(', ') || 'various services'} for ${businessInfo.targetAudience || 'our clients'} in ${businessInfo.location || 'our service area'}.`
@@ -445,8 +661,6 @@ Format as JSON with: title, shortDescription, description, metaDescription, tags
         answer: `We primarily serve ${businessInfo.location || 'our local area'} and surrounding regions. Contact us to confirm service availability in your location.`
       }
     ];
-
-    return commonFAQs;
   }
 
   async generateSEOSuggestions(content: string, keywords: string[]): Promise<{
@@ -460,39 +674,6 @@ Format as JSON with: title, shortDescription, description, metaDescription, tags
     keywords: string[];
     recommendations: string[];
   }> {
-    if (this.config.apiKey === 'demo-key') {
-      return {
-        score: 75,
-        issues: [
-          {
-            type: 'warning',
-            title: 'Missing Meta Description',
-            description: 'Page is missing a meta description which is important for search results.',
-            fix: 'Add a compelling 150-160 character meta description that includes your target keywords.'
-          },
-          {
-            type: 'info',
-            title: 'Image Alt Text',
-            description: 'Some images are missing alt text for better accessibility and SEO.',
-            fix: 'Add descriptive alt text to all images mentioning relevant keywords when appropriate.'
-          },
-          {
-            type: 'error',
-            title: 'Page Load Speed',
-            description: 'Page load time could be improved for better user experience and SEO.',
-            fix: 'Optimize images and reduce unnecessary JavaScript to improve load times.'
-          }
-        ],
-        keywords: keywords.length > 0 ? keywords : ['business', 'service', 'local'],
-        recommendations: [
-          'Add more internal links between related pages',
-          'Create a blog to target long-tail keywords',
-          'Optimize for local SEO with location-based keywords',
-          'Add schema markup for better search engine understanding'
-        ]
-      };
-    }
-
     try {
       const prompt = `Analyze this content for SEO optimization: "${content.substring(0, 500)}..."
       Target keywords: ${keywords.join(', ')}
@@ -503,40 +684,55 @@ Format as JSON with: title, shortDescription, description, metaDescription, tags
       3. Specific recommendations for improvement
       4. Keyword optimization suggestions
       
-      Return as structured data.`;
+      Return as structured JSON.`;
       
-      const response = await this.callAI([{
-        role: 'user',
-        content: prompt
-      }]);
+      const response = await this.generateResponse(prompt);
       return this.parseSEOResponse(response, keywords);
     } catch (error) {
       console.error('SEO analysis failed:', error);
-      // Return demo data as fallback
-      return this.generateSEOSuggestions(content, keywords);
+      return this.generateFallbackSEOAnalysis(keywords);
     }
   }
 
-  private parseSEOResponse(content: string, keywords: string[]) {
-    // Parse AI response into structured SEO format
-    // For demo, return basic structure
+  private generateFallbackSEOAnalysis(keywords: string[]) {
     return {
-      score: 78,
+      score: 75,
       issues: [
         {
           type: 'warning' as const,
-          title: 'Content Length',
-          description: 'Content could be more comprehensive for better SEO ranking.',
-          fix: 'Expand sections with more detailed information and target keywords.'
+          title: 'Missing Meta Description',
+          description: 'Page is missing a meta description which is important for search results.',
+          fix: 'Add a compelling 150-160 character meta description that includes your target keywords.'
+        },
+        {
+          type: 'info' as const,
+          title: 'Image Alt Text',
+          description: 'Some images are missing alt text for better accessibility and SEO.',
+          fix: 'Add descriptive alt text to all images mentioning relevant keywords when appropriate.'
+        },
+        {
+          type: 'error' as const,
+          title: 'Page Load Speed',
+          description: 'Page load time could be improved for better user experience and SEO.',
+          fix: 'Optimize images and reduce unnecessary JavaScript to improve load times.'
         }
       ],
-      keywords: keywords.length > 0 ? keywords : ['business', 'professional', 'service'],
+      keywords: keywords.length > 0 ? keywords : ['business', 'service', 'local'],
       recommendations: [
-        'Improve content depth and keyword density',
-        'Add more semantic keywords related to your business',
-        'Include location-based keywords for local SEO'
+        'Add more internal links between related pages',
+        'Create a blog to target long-tail keywords',
+        'Optimize for local SEO with location-based keywords',
+        'Add schema markup for better search engine understanding'
       ]
     };
+  }
+
+  private parseSEOResponse(content: string, keywords: string[]) {
+    try {
+      return JSON.parse(content);
+    } catch (error) {
+      return this.generateFallbackSEOAnalysis(keywords);
+    }
   }
 
   clearConversation(conversationId: string): void {
