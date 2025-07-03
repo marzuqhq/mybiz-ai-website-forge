@@ -17,14 +17,14 @@ interface Website {
 }
 
 const PublicWebsiteRouter: React.FC = () => {
-  const { slug } = useParams();
+  const { websiteSlug } = useParams();
   const [website, setWebsite] = useState<Website | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const loadWebsite = async () => {
-      if (!slug) {
+      if (!websiteSlug) {
         setError('No website slug provided');
         setLoading(false);
         return;
@@ -32,7 +32,7 @@ const PublicWebsiteRouter: React.FC = () => {
 
       try {
         const websites = await sdk.get('websites');
-        const foundWebsite = websites.find((w: any) => w.slug === slug && w.status === 'published');
+        const foundWebsite = websites.find((w: any) => w.slug === websiteSlug && w.status === 'published');
         
         if (!foundWebsite) {
           setError('Website not found or not published');
@@ -50,7 +50,7 @@ const PublicWebsiteRouter: React.FC = () => {
     };
 
     loadWebsite();
-  }, [slug]);
+  }, [websiteSlug]);
 
   if (loading) {
     return (

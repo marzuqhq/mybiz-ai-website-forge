@@ -9,12 +9,39 @@ interface ImprovedSDKConfig {
   basePath?: string;
 }
 
+export interface User {
+  id: string;
+  email: string;
+  password?: string;
+  verified: boolean;
+  roles: string[];
+  permissions: string[];
+  plan: string;
+  authMethod: string;
+  createdAt: string;
+  profile: Record<string, any>;
+  subdomain: string;
+}
+
+export interface Session {
+  id: string;
+  userId: string;
+  token: string;
+  expiresAt: string;
+  metadata: Record<string, any>;
+}
+
+export interface SessionWithUser extends Session {
+  user: User;
+}
+
 class ImprovedGitHubSDK {
   private octokit: Octokit;
   private config: ImprovedSDKConfig;
   private cache: Map<string, { data: any; timestamp: number; sha?: string }> = new Map();
   private readonly CACHE_TTL = 30 * 1000; // 30 seconds cache
   private operationQueue: Map<string, Promise<any>> = new Map();
+  private sessions: Map<string, SessionWithUser> = new Map();
 
   constructor(config: ImprovedSDKConfig) {
     this.config = {
@@ -258,6 +285,118 @@ class ImprovedGitHubSDK {
     }
 
     return slug;
+  }
+
+  // Check if slug is available
+  async isSlugAvailable(slug: string, collection: string = 'websites'): Promise<boolean> {
+    const data = await this.get(collection);
+    return !data.some(item => item.slug === slug);
+  }
+
+  // Authentication methods
+  async login(email: string, password: string): Promise<string | { otpRequired: boolean }> {
+    const users = await this.get('users');
+    const user = users.find((u: User) => u.email === email);
+    
+    if (!user || user.password !== password) {
+      throw new Error('Invalid credentials');
+    }
+
+    // Generate session token
+    const token = this.generateId();
+    const session: SessionWithUser = {
+      id: this.generateId(),
+      userId: user.id,
+      token,
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      metadata: {},
+      user
+    };
+
+    this.sessions.set(token, session);
+    return token;
+  }
+
+  async register(email: string, password: string, profile: any = {}): Promise<User> {
+    const users = await this.get('users');
+    const existingUser = users.find((u: User) => u.email === email);
+    
+    if (existingUser) {
+      throw new Error('User already exists');
+    }
+
+    const newUser: User = {
+      id: this.generateId(),
+      email,
+      password,
+      verified: true,
+      roles: profile.roles || ['user'],
+      permissions: profile.permissions || ['read', 'write'],
+      plan: profile.plan || 'free',
+      authMethod: 'email',
+      createdAt: new Date().toISOString(),
+      profile: profile,
+      subdomain: profile.subdomain || ''
+    };
+
+    await this.insert('users', newUser);
+    return newUser;
+  }
+
+  getSession(token: string): SessionWithUser | null {
+    return this.sessions.get(token) || null;
+  }
+
+  destroySession(token: string): void {
+    this.sessions.delete(token);
+  }
+
+  async verifyLoginOTP(email: string, otp: string): Promise<string> {
+    // For now, just simulate OTP verification
+    const users = await this.get('users');
+    const user = users.find((u: User) => u.email === email);
+    
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    // Generate session token
+    const token = this.generateId();
+    const session: SessionWithUser = {
+      id: this.generateId(),
+      userId: user.id,
+      token,
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      metadata: {},
+      user
+    };
+
+    this.sessions.set(token, session);
+    return token;
+  }
+
+  async requestPasswordReset(email: string): Promise<void> {
+    const users = await this.get('users');
+    const user = users.find((u: User) => u.email === email);
+    
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    // In a real implementation, this would send an email
+    console.log(`Password reset requested for ${email}`);
+  }
+
+  async resetPassword(email: string, otp: string, newPassword: string): Promise<void> {
+    const users = await this.get('users');
+    const user = users.find((u: User) => u.email === email);
+    
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    // Update password
+    await this.update('users', user.id, { password: newPassword });
   }
 
   // Clear cache

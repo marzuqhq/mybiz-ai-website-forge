@@ -8,7 +8,7 @@ import Login from '@/pages/Login';
 import Register from '@/pages/Register';
 import WebsiteEditor from '@/pages/WebsiteEditor';
 import CMSManager from '@/pages/CMSManager';
-import PublicWebsiteView from '@/components/public/PublicWebsiteView';
+import PublicWebsiteRouter from '@/components/public/PublicWebsiteRouter';
 import PublicBlogArchive from '@/components/public/PublicBlogArchive';
 import PublicBlogPost from '@/components/public/PublicBlogPost';
 import PublicFormPage from '@/components/public/PublicFormPage';
@@ -31,8 +31,8 @@ function App() {
             <Route path="/cms/:websiteId" element={<CMSManager />} />
             
             {/* Public Website Routes */}
-            <Route path="/:websiteSlug" element={<PublicWebsiteView />} />
-            <Route path="/:websiteSlug/:pageSlug" element={<PublicWebsiteView />} />
+            <Route path="/:websiteSlug" element={<PublicWebsiteRouter />} />
+            <Route path="/:websiteSlug/:pageSlug" element={<PublicWebsiteRouter />} />
             <Route path="/:websiteSlug/blog" element={<PublicBlogArchive />} />
             <Route path="/:websiteSlug/blog/:postSlug" element={<PublicBlogPost />} />
             <Route path="/:websiteSlug/form/:formSlug" element={<PublicFormPage />} />
