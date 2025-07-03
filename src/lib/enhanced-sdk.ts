@@ -1,428 +1,47 @@
 
-import UniversalSDK, { 
-  UniversalSDKConfig, 
-  User, 
-  Session,
-  CloudinaryUploadResult 
-} from './UniversalSDK';
+import ImprovedGitHubSDK from './improved-github-sdk';
 
-// Enhanced SDK Configuration
-const sdkConfig: UniversalSDKConfig = {
+// Enhanced SDK Configuration with improved schema
+const sdkConfig = {
   owner: import.meta.env.VITE_GITHUB_OWNER || 'ridwanullahh',
   repo: import.meta.env.VITE_GITHUB_REPO || 'mybizaidb',
   token: import.meta.env.VITE_GITHUB_TOKEN || 'demo-token',
   branch: import.meta.env.VITE_GITHUB_BRANCH || 'main',
-  basePath: 'db',
-  mediaPath: 'media',
-  cloudinary: {
-    cloudName: import.meta.env.VITE_CLOUDINARY_CLOUD_NAME,
-    uploadPreset: import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET,
-  },
-  smtp: {
-    endpoint: '/api/send-email',
-    from: import.meta.env.VITE_SMTP_FROM || 'noreply@mybiz.ai',
-  },
-  auth: {
-    requireEmailVerification: false,
-    otpTriggers: [],
-  },
-  schemas: {
-    users: {
-      required: ['email'],
-      types: {
-        email: 'string',
-        password: 'string',
-        verified: 'boolean',
-        roles: 'array',
-        permissions: 'array',
-        plan: 'string',
-        authMethod: 'string',
-        createdAt: 'date',
-        profile: 'object',
-        subdomain: 'string',
-      },
-      defaults: {
-        verified: true,
-        roles: ['user'],
-        permissions: ['read', 'write'],
-        plan: 'free',
-        authMethod: 'email',
-        createdAt: new Date().toISOString(),
-        profile: {},
-        subdomain: '',
-      },
-    },
-    websites: {
-      required: ['userId', 'name'],
-      types: {
-        userId: 'string',
-        name: 'string',
-        domain: 'string',
-        slug: 'string',
-        theme: 'object',
-        seoConfig: 'object',
-        status: 'string',
-        businessInfo: 'object',
-        createdAt: 'date',
-        updatedAt: 'date',
-        publishedAt: 'date',
-        analytics: 'object',
-        content: 'object',
-        pages: 'array',
-        publicUrl: 'string',
-      },
-      defaults: {
-        status: 'active',
-        slug: '',
-        publicUrl: '',
-        theme: {
-          primaryColor: '#6366F1',
-          secondaryColor: '#8B5CF6',
-          accentColor: '#FF6B6B',
-          fontFamily: 'Inter',
-          fontHeading: 'Inter',
-          borderRadius: 'medium',
-          spacing: 'comfortable',
-        },
-        seoConfig: {
-          metaTitle: '',
-          metaDescription: '',
-          keywords: [],
-          ogImage: '',
-          sitemap: true,
-          robotsTxt: 'index,follow',
-        },
-        businessInfo: {},
-        analytics: {
-          googleAnalytics: '',
-          plausible: '',
-          customTracking: [],
-        },
-        content: {},
-        pages: [],
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      },
-    },
-    pages: {
-      required: ['websiteId', 'title'],
-      types: {
-        websiteId: 'string',
-        title: 'string',
-        slug: 'string',
-        type: 'string',
-        blocks: 'array',
-        seoMeta: 'object',
-        status: 'string',
-        createdAt: 'date',
-        updatedAt: 'date',
-      },
-      defaults: {
-        slug: '',
-        type: 'page',
-        blocks: [],
-        seoMeta: {},
-        status: 'published',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      },
-    },
-    blocks: {
-      required: ['pageId', 'type'],
-      types: {
-        pageId: 'string',
-        type: 'string',
-        content: 'object',
-        order: 'number',
-        aiGenerated: 'boolean',
-        editable: 'boolean',
-        createdAt: 'date',
-        updatedAt: 'date',
-      },
-      defaults: {
-        content: {},
-        order: 0,
-        aiGenerated: false,
-        editable: true,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      },
-    },
-    blog_posts: {
-      required: ['websiteId', 'title', 'content'],
-      types: {
-        websiteId: 'string',
-        title: 'string',
-        content: 'string',
-        excerpt: 'string',
-        slug: 'string',
-        status: 'string',
-        publishedAt: 'date',
-        createdAt: 'date',
-        updatedAt: 'date',
-        author: 'string',
-        tags: 'array',
-        featuredImage: 'string',
-        seoTitle: 'string',
-        seoDescription: 'string',
-        category: 'string',
-      },
-      defaults: {
-        status: 'published',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        publishedAt: new Date().toISOString(),
-        tags: [],
-        excerpt: '',
-        slug: '',
-        author: '',
-        featuredImage: '',
-        seoTitle: '',
-        seoDescription: '',
-        category: 'general',
-        content: '',
-      },
-    },
-    posts: {
-      required: ['websiteId', 'title', 'content'],
-      types: {
-        websiteId: 'string',
-        title: 'string',
-        content: 'string',
-        excerpt: 'string',
-        slug: 'string',
-        status: 'string',
-        publishedAt: 'date',
-        createdAt: 'date',
-        updatedAt: 'date',
-        author: 'string',
-        tags: 'array',
-        featuredImage: 'string',
-        seoTitle: 'string',
-        seoDescription: 'string',
-        category: 'string',
-      },
-      defaults: {
-        status: 'published',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        publishedAt: new Date().toISOString(),
-        tags: [],
-        excerpt: '',
-        slug: '',
-        author: '',
-        featuredImage: '',
-        seoTitle: '',
-        seoDescription: '',
-        category: 'general',
-        content: '',
-      },
-    },
-    products: {
-      required: ['websiteId', 'name'],
-      types: {
-        websiteId: 'string',
-        name: 'string',
-        description: 'string',
-        price: 'number',
-        currency: 'string',
-        category: 'string',
-        tags: 'array',
-        images: 'array',
-        status: 'string',
-        featured: 'boolean',
-        inventory: 'number',
-        sku: 'string',
-        createdAt: 'date',
-        updatedAt: 'date',
-      },
-      defaults: {
-        description: '',
-        price: 0,
-        currency: 'USD',
-        category: 'general',
-        tags: [],
-        images: [],
-        status: 'active',
-        featured: false,
-        inventory: 0,
-        sku: '',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      },
-    },
-    faqs: {
-      required: ['websiteId', 'question', 'answer'],
-      types: {
-        websiteId: 'string',
-        question: 'string',
-        answer: 'string',
-        category: 'string',
-        order: 'number',
-        status: 'string',
-        aiGenerated: 'boolean',
-        createdAt: 'date',
-        updatedAt: 'date',
-      },
-      defaults: {
-        category: 'general',
-        order: 0,
-        status: 'published',
-        aiGenerated: false,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      },
-    },
-    customers: {
-      required: ['websiteId', 'email'],
-      types: {
-        websiteId: 'string',
-        email: 'string',
-        name: 'string',
-        phone: 'string',
-        company: 'string',
-        notes: 'string',
-        tags: 'array',
-        status: 'string',
-        createdAt: 'date',
-        updatedAt: 'date',
-      },
-      defaults: {
-        name: '',
-        phone: '',
-        company: '',
-        notes: '',
-        tags: [],
-        status: 'active',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      },
-    },
-    forms: {
-      required: ['websiteId', 'name'],
-      types: {
-        websiteId: 'string',
-        name: 'string',
-        slug: 'string',
-        description: 'string',
-        fields: 'array',
-        settings: 'object',
-        status: 'string',
-        submissions: 'number',
-        createdAt: 'date',
-        updatedAt: 'date',
-      },
-      defaults: {
-        slug: '',
-        description: '',
-        fields: [],
-        settings: {
-          submitMessage: 'Thank you for your submission!',
-          redirectUrl: '',
-          emailNotifications: true,
-          captcha: false,
-        },
-        status: 'active',
-        submissions: 0,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      },
-    },
-    form_submissions: {
-      required: ['formId', 'data'],
-      types: {
-        formId: 'string',
-        data: 'object',
-        ipAddress: 'string',
-        userAgent: 'string',
-        status: 'string',
-        createdAt: 'date',
-      },
-      defaults: {
-        ipAddress: '',
-        userAgent: '',
-        status: 'new',
-        createdAt: new Date().toISOString(),
-      },
-    },
-    invoices: {
-      required: ['websiteId', 'clientEmail', 'amount'],
-      types: {
-        websiteId: 'string',
-        clientEmail: 'string',
-        clientName: 'string',
-        amount: 'number',
-        currency: 'string',
-        description: 'string',
-        items: 'array',
-        status: 'string',
-        dueDate: 'date',
-        paidDate: 'date',
-        createdAt: 'date',
-        updatedAt: 'date',
-      },
-      defaults: {
-        clientName: '',
-        currency: 'USD',
-        description: '',
-        items: [],
-        status: 'draft',
-        dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-        paidDate: '',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      },
-    },
-    chat_conversations: {
-      required: ['websiteId', 'sessionId'],
-      types: {
-        websiteId: 'string',
-        userId: 'string',
-        sessionId: 'string',
-        messages: 'array',
-        context: 'object',
-        status: 'string',
-        metadata: 'object',
-        createdAt: 'date',
-        updatedAt: 'date',
-      },
-      defaults: {
-        userId: '',
-        messages: [],
-        context: {},
-        status: 'active',
-        metadata: {},
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      },
-    },
-  },
-  templates: {
-    business: {
-      pages: ['home', 'about', 'services', 'contact'],
-      theme: 'professional',
-    },
-    portfolio: {
-      pages: ['home', 'portfolio', 'about', 'contact'],
-      theme: 'creative',
-    },
-    blog: {
-      pages: ['home', 'blog', 'about', 'contact'],
-      theme: 'minimal',
-    },
-  },
+  basePath: 'db'
 };
 
-// Initialize and export the SDK
-const sdk = new UniversalSDK(sdkConfig);
+// Initialize SDK with improved GitHub handling
+const sdk = new ImprovedGitHubSDK(sdkConfig);
 
-// Initialize with error handling
+// Auto-create collections if they don't exist
+const ensureCollections = async () => {
+  const collections = [
+    'users', 'websites', 'pages', 'blocks', 'blog_posts', 'products', 
+    'faqs', 'customers', 'forms', 'form_submissions', 'invoices', 
+    'chat_conversations', 'email_campaigns'
+  ];
+
+  for (const collection of collections) {
+    try {
+      await sdk.get(collection);
+    } catch (error) {
+      console.log(`Creating collection: ${collection}`);
+      await sdk.saveCollection(collection, []);
+    }
+  }
+};
+
+// Initialize collections on startup
 if (typeof window !== 'undefined') {
-  sdk.get('users').catch(error => {
-    console.warn('Initial SDK setup - this is normal on first run:', error.message);
+  ensureCollections().catch(error => {
+    console.warn('Collection initialization warning:', error.message);
   });
 }
 
 export default sdk;
 export { sdkConfig };
-export type { User, Session, CloudinaryUploadResult };
+export type { 
+  User, 
+  Session, 
+  CloudinaryUploadResult 
+} from './UniversalSDK';
