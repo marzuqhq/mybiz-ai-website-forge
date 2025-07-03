@@ -550,4 +550,5 @@ Format as JSON with: title, shortDescription, description, metaDescription, tags
 
 export const aiService = new AIService();
 export default aiService;
+export { AIService };
 export type { AIConfig, AIMessage };
