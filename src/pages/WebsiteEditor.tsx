@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -87,7 +86,7 @@ const WebsiteEditor: React.FC = () => {
       setIsLoading(true);
       
       // Load website
-      const websiteData = await sdk.getItem<Website>('websites', websiteId);
+      const websiteData = await sdk.getItem('websites', websiteId);
       if (!websiteData || websiteData.userId !== user.id) {
         navigate('/');
         return;
@@ -95,12 +94,12 @@ const WebsiteEditor: React.FC = () => {
       setWebsite(websiteData);
 
       // Load pages
-      const allPages = await sdk.get<Page>('pages');
-      const websitePages = allPages.filter(p => p.websiteId === websiteId);
+      const allPages = await sdk.get('pages');
+      const websitePages = allPages.filter((p: Page) => p.websiteId === websiteId);
       setPages(websitePages);
 
       // Set current page (home page first)
-      const homePage = websitePages.find(p => p.type === 'home') || websitePages[0];
+      const homePage = websitePages.find((p: Page) => p.type === 'home') || websitePages[0];
       if (homePage) {
         setCurrentPage(homePage);
         await loadPageBlocks(homePage.id);
@@ -119,10 +118,10 @@ const WebsiteEditor: React.FC = () => {
 
   const loadPageBlocks = async (pageId: string) => {
     try {
-      const allBlocks = await sdk.get<Block>('blocks');
+      const allBlocks = await sdk.get('blocks');
       const pageBlocks = allBlocks
-        .filter(b => b.pageId === pageId)
-        .sort((a, b) => a.order - b.order);
+        .filter((b: Block) => b.pageId === pageId)
+        .sort((a: Block, b: Block) => a.order - b.order);
       setBlocks(pageBlocks);
     } catch (error) {
       console.error('Failed to load page blocks:', error);
@@ -149,7 +148,7 @@ const WebsiteEditor: React.FC = () => {
       }
 
       // Update block
-      const updatedBlock = await sdk.update<Block>('blocks', blockId, {
+      const updatedBlock = await sdk.update('blocks', blockId, {
         content: newContent,
         aiGenerated: true
       });

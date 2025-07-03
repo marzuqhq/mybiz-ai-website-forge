@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -44,8 +43,8 @@ const CMSManager: React.FC = () => {
 
     try {
       setIsLoading(true);
-      const websites = await sdk.get<Website>('websites');
-      const websiteData = websites.find(w => w.id === websiteId);
+      const websites = await sdk.get('websites');
+      const websiteData = websites.find((w: Website) => w.id === websiteId);
       
       if (!websiteData || websiteData.userId !== user.id) {
         navigate('/');

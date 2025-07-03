@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -51,8 +50,8 @@ const ProductManager: React.FC<ProductManagerProps> = ({ websiteId }) => {
   const loadProducts = async () => {
     try {
       setIsLoading(true);
-      const allProducts = await sdk.get<Product>('products');
-      const websiteProducts = allProducts.filter(product => product.websiteId === websiteId);
+      const allProducts = await sdk.get('products');
+      const websiteProducts = allProducts.filter((product: Product) => product.websiteId === websiteId);
       setProducts(websiteProducts);
     } catch (error: any) {
       toast({

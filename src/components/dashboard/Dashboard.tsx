@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -55,17 +54,17 @@ const Dashboard: React.FC = () => {
       setIsLoading(true);
       
       // Load user's websites
-      const allWebsites = await sdk.get<Website>('websites');
-      const userWebsites = allWebsites.filter(w => w.userId === user.id);
+      const allWebsites = await sdk.get('websites');
+      const userWebsites = allWebsites.filter((w: Website) => w.userId === user.id);
       setWebsites(userWebsites);
 
       // Calculate stats
-      const published = userWebsites.filter(w => w.status === 'published').length;
+      const published = userWebsites.filter((w: Website) => w.status === 'published').length;
       
       // Load submissions for user's websites
       const allSubmissions = await sdk.get('submissions');
-      const userSubmissions = allSubmissions.filter(s => 
-        userWebsites.some(w => w.id === s.websiteId)
+      const userSubmissions = allSubmissions.filter((s: any) => 
+        userWebsites.some((w: Website) => w.id === s.websiteId)
       );
 
       setStats({

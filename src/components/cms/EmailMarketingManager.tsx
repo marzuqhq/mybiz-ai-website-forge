@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -61,11 +60,11 @@ const EmailMarketingManager: React.FC<EmailMarketingManagerProps> = ({ websiteId
     try {
       setIsLoading(true);
       const [campaignsData, customersData] = await Promise.all([
-        sdk.get<EmailCampaign>('email_campaigns'),
+        sdk.get('email_campaigns'),
         sdk.get('customers')
       ]);
       
-      const websiteCampaigns = campaignsData.filter(campaign => campaign.websiteId === websiteId);
+      const websiteCampaigns = campaignsData.filter((campaign: EmailCampaign) => campaign.websiteId === websiteId);
       const websiteCustomers = customersData.filter((customer: any) => customer.websiteId === websiteId);
       
       setCampaigns(websiteCampaigns);
@@ -354,70 +353,45 @@ const EmailMarketingManager: React.FC<EmailMarketingManagerProps> = ({ websiteId
                       {campaign.subject}
                     </CardDescription>
                   </div>
-                  <Badge variant={
-                    campaign.status === 'sent' ? 'default' : 
-                    campaign.status === 'scheduled' ? 'secondary' : 'outline'
-                  }>
+                  <Badge variant={campaign.status === 'sent' ? 'default' : 'secondary'}>
                     {campaign.status}
                   </Badge>
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="space-y-3 mb-4">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="flex items-center text-gray-600">
-                      <Users className="w-4 h-4 mr-1" />
-                      Recipients
-                    </span>
-                    <span className="font-medium">{campaign.recipients.length}</span>
+                <div className="space-y-4">
+                  <div className="text-sm text-gray-600">
+                    Recipients: {campaign.recipients.length}
                   </div>
                   
                   {campaign.status === 'sent' && (
-                    <>
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-gray-600">Delivered</span>
-                        <span className="font-medium">{campaign.stats.delivered}</span>
-                      </div>
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-gray-600">Opened</span>
-                        <span className="font-medium">{campaign.stats.opened}</span>
-                      </div>
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-gray-600">Clicked</span>
-                        <span className="font-medium">{campaign.stats.clicked}</span>
-                      </div>
-                    </>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div>Sent: {campaign.stats.sent}</div>
+                      <div>Opened: {campaign.stats.opened}</div>
+                      <div>Clicked: {campaign.stats.clicked}</div>
+                      <div>Bounced: {campaign.stats.bounced}</div>
+                    </div>
                   )}
-                </div>
 
-                <div className="flex items-center space-x-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleEdit(campaign)}
-                    className="flex-1"
-                  >
-                    <Edit className="w-3 h-3 mr-1" />
-                    Edit
-                  </Button>
-                  {campaign.status === 'draft' && (
+                  <div className="flex items-center space-x-2">
                     <Button
                       variant="outline"
                       size="sm"
-                      className="hover:bg-green-50 hover:border-green-200 hover:text-green-600"
+                      onClick={() => handleEdit(campaign)}
+                      className="flex-1"
                     >
-                      <Send className="w-3 h-3 mr-1" />
-                      Send
+                      <Edit className="w-3 h-3 mr-1" />
+                      Edit
                     </Button>
-                  )}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleDelete(campaign.id)}
-                    className="hover:bg-red-50 hover:border-red-200 hover:text-red-600"
-                  >
-                    <Trash2 className="w-3 h-3" />
-                  </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleDelete(campaign.id)}
+                      className="hover:bg-red-50 hover:border-red-200 hover:text-red-600"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>
