@@ -148,7 +148,7 @@ class UniversalSDK {
       });
 
       if ('content' in response.data) {
-        const content = Buffer.from(response.data.content, 'base64').toString('utf-8');
+        const content = atob(response.data.content);
         const data = JSON.parse(content);
         
         // Cache the result
