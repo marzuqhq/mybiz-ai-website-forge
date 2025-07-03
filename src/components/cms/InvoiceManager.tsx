@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -55,7 +54,7 @@ const InvoiceManager: React.FC<InvoiceManagerProps> = ({ websiteId }) => {
     try {
       setIsLoading(true);
       const [invoicesData, customersData] = await Promise.all([
-        sdk.get<Invoice>('invoices'),
+        sdk.get('invoices') as Promise<Invoice[]>,
         sdk.get('customers')
       ]);
       
