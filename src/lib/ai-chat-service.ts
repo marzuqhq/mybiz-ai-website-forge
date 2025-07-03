@@ -37,7 +37,7 @@ interface ChatMemory {
 class AIChatService {
   private memory: Map<string, ChatMemory> = new Map();
   private conversationId: string;
-  private aiService: AIService;
+  private aiService: InstanceType<typeof AIService>;
 
   constructor(websiteId: string, userId?: string) {
     this.conversationId = `${websiteId}-${userId || 'anonymous'}-${Date.now()}`;
