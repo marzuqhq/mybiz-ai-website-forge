@@ -27,7 +27,15 @@ const CreateWebsiteForm: React.FC = () => {
     location: '',
     tone: '',
     services: [] as string[],
-    description: ''
+    description: '',
+    branding: {
+      logo: '',
+      primaryColor: '#6366F1',
+      secondaryColor: '#8B5CF6',
+      fontFamily: 'Inter',
+      layout: 'modern'
+    },
+    pages: ['home', 'about', 'services', 'contact'] as string[]
   });
   const [newService, setNewService] = useState('');
 

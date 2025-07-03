@@ -1,4 +1,3 @@
-
 import sdk from './sdk';
 import { aiService, AIService } from './ai-service';
 
@@ -175,12 +174,8 @@ class AIChatService {
         conversationHistory: memory.messages.slice(-10)
       };
 
-      // Generate intelligent response using AI service
-      const response = await this.aiService.generateResponse(
-        userMessage,
-        aiContext,
-        conversationId
-      );
+      // Generate intelligent response using AI service (fix: use 2 arguments instead of 3)
+      const response = await this.aiService.generateResponse(userMessage, aiContext);
 
       // Update memory with AI response
       const botMsg: ChatMessage = {
@@ -258,7 +253,10 @@ class AIChatService {
 
   clearMemory(conversationId: string): void {
     this.memory.delete(conversationId);
-    this.aiService.clearConversation(conversationId);
+    // Add clearConversation method to AIService if it doesn't exist
+    if (typeof this.aiService.clearConversation === 'function') {
+      this.aiService.clearConversation(conversationId);
+    }
   }
 
   // Analytics and insights

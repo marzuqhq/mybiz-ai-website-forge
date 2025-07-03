@@ -1,4 +1,5 @@
-import { Configuration, OpenAIApi } from 'openai';
+
+// Remove OpenAI import and add missing methods
 
 interface WebsiteData {
   businessName: string;
@@ -27,6 +28,7 @@ interface FAQData {
 class AIService {
   private chutesApiKey: string;
   private geminiApiKey: string;
+  private conversations: Map<string, any> = new Map();
 
   constructor() {
     this.chutesApiKey = import.meta.env.VITE_CHUTES_API_KEY || '';
@@ -73,12 +75,19 @@ class AIService {
       Generate a complete website structure based on the following data:
       ${JSON.stringify(websiteData, null, 2)}
 
-      Include:
-      - theme (colors, fonts, styles)
-      - seoConfig (title, description, keywords)
-      - pages (title, slug, type, htmlContent, cssContent, jsContent, seoMeta)
+      Create a modern, professional website with:
+      - HTML structure with semantic elements
+      - CSS styling using the provided branding colors and fonts
+      - JavaScript for interactivity
+      - SEO-optimized meta tags
+      - Responsive design
 
-      Ensure valid HTML, CSS, and JavaScript.
+      Return JSON with:
+      - htmlContent: Complete HTML structure
+      - cssContent: CSS styles
+      - jsContent: JavaScript functionality
+      - seoConfig: Meta tags and SEO data
+      - pages: Array of page objects with title, slug, content
     `;
 
     try {
@@ -133,6 +142,11 @@ class AIService {
       console.error('Error generating AI response:', error);
       throw new Error('Failed to generate AI response');
     }
+  }
+
+  // Add missing clearConversation method
+  clearConversation(conversationId: string): void {
+    this.conversations.delete(conversationId);
   }
 }
 
